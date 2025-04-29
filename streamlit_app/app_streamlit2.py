@@ -1,18 +1,14 @@
 import streamlit as st
-import altair as alt
 import requests
-import os
-import pandas as pd
+import json
 import time
+import pandas as pd
+import altair as alt
 
 st.set_page_config(page_title="Fraud Detection Engine Dashboard", layout="wide")
 
 # Base URL FastAPI
-BASE_URL = "http://localhost:8000/api/v1"
-
-if "BASE_URL" in os.environ:
-    BASE_URL = os.environ["BASE_URL"]
-
+BASE_URL = "http://fraud_engine:8000/api/v1"
 
 st.title("🚀 Fraud Detection Engine Dashboard")
 
@@ -38,6 +34,24 @@ st.title("🚀 Fraud Detection Engine Dashboard")
         "🔄 Monitor Transactions",
     ]
 )
+
+
+# Helper function
+def safe_get_dataframe_from_api(url):
+    try:
+        resp = requests.get(url)
+        resp.raise_for_status()
+        result = resp.json()
+        if result.get("status") == "success" and isinstance(result.get("data"), list):
+            df = pd.DataFrame(result["data"])
+            return df
+        else:
+            st.error("Invalid or empty data format.")
+            return pd.DataFrame()
+    except Exception as e:
+        st.error(f"Error fetching data: {e}")
+        return pd.DataFrame()
+
 
 # Healthcheck Tab
 with tab_health:
@@ -85,8 +99,9 @@ with tab_user:
 
     view_user_expander = st.expander("📄 View Users")
     with view_user_expander:
-        response = requests.get(f"{BASE_URL}/user/")
-        st.json(response.json())
+        df = safe_get_dataframe_from_api(f"{BASE_URL}/user/")
+        if not df.empty:
+            st.dataframe(df)
 
 # Transaction Management Tab
 with tab_transaction:
@@ -134,8 +149,9 @@ with tab_transaction:
 
     view_trx_expander = st.expander("📄 View Transactions")
     with view_trx_expander:
-        response = requests.get(f"{BASE_URL}/transaction/")
-        st.json(response.json())
+        df = safe_get_dataframe_from_api(f"{BASE_URL}/transaction/")
+        if not df.empty:
+            st.dataframe(df)
 
     upload_trx_expander = st.expander("📁 Upload Transaction Batch + Auto Process")
     with upload_trx_expander:
@@ -168,11 +184,9 @@ with tab_policy:
         uploaded_file_policy = st.file_uploader(
             "Upload Policy JSON File", type=["json"]
         )
-
         if uploaded_file_policy is not None:
             file_content = uploaded_file_policy.read()
             policies = json.loads(file_content)
-
             if isinstance(policies, list):
                 for policy in policies:
                     res = requests.post(f"{BASE_URL}/policy/", json=policy)
@@ -183,7 +197,7 @@ with tab_policy:
 # Rule Management Tab
 with tab_rule:
     st.header("📏 Rule Management")
-    st.info("Upload dan edit Rules manual via API.")
+    st.info("Untuk sekarang upload dan edit Rules manual via API.")
 
 # Process Transaction Tab
 with tab_process:
@@ -204,29 +218,13 @@ with tab_stats:
     )
 
     if stats_type == "Users":
-        response = requests.get(f"{BASE_URL}/stats/users")
-        st.json(response.json())
-    elif stats_type == "Transactions":
-        response = requests.get(f"{BASE_URL}/stats/transactions")
-        data = response.json()["data"]
-
-        if data:
-            df = pd.DataFrame(data)
-            st.bar_chart(df.set_index("id_transaction")["risk_score"])
-    elif stats_type == "Policies Performance":
-        response = requests.get(f"{BASE_URL}/stats/policies-performance")
-        st.json(response.json())
-    elif stats_type == "Rules Performance":
-        response = requests.get(f"{BASE_URL}/stats/rules-performance")
-        st.json(response.json())
+        df = safe_get_dataframe_from_api(f"{BASE_URL}/stats/users")
+        if not df.empty:
+            st.dataframe(df)
 
     elif stats_type == "Transactions":
-        response = requests.get(f"{BASE_URL}/stats/transactions")
-        data = response.json()["data"]
-
-        if data:
-            df = pd.DataFrame(data)
-
+        df = safe_get_dataframe_from_api(f"{BASE_URL}/stats/transactions")
+        if not df.empty:
             st.subheader("📊 Risk Score Chart")
             st.bar_chart(df.set_index("id_transaction")["risk_score"])
 
@@ -272,6 +270,16 @@ with tab_stats:
             else:
                 st.success("✅ No high risk transactions detected!")
 
+    elif stats_type == "Policies Performance":
+        df = safe_get_dataframe_from_api(f"{BASE_URL}/stats/policies-performance")
+        if not df.empty:
+            st.dataframe(df)
+
+    elif stats_type == "Rules Performance":
+        df = safe_get_dataframe_from_api(f"{BASE_URL}/stats/rules-performance")
+        if not df.empty:
+            st.dataframe(df)
+
 # Monitor Transactions Tab
 with tab_monitor:
     st.header("🔄 Realtime Transaction Monitoring")
@@ -285,12 +293,9 @@ with tab_monitor:
         while True:
             with placeholder.container():
                 st.write("Refreshing...")
-                response = requests.get(f"{BASE_URL}/transaction/")
-                if response.status_code == 200:
-                    trx_data = response.json()["data"]
-                    df = pd.DataFrame(trx_data)
-                    if not df.empty:
-                        st.dataframe(df[["id_transaction", "amount", "status"]])
+                df = safe_get_dataframe_from_api(f"{BASE_URL}/transaction/")
+                if not df.empty:
+                    st.dataframe(df[["id_transaction", "amount", "status"]])
                 else:
-                    st.warning("No data or server error.")
+                    st.warning("No transaction data or server error.")
             time.sleep(refresh_interval)
