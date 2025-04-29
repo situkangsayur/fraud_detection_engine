@@ -1,0 +1,37 @@
+[tool.poetry]
+name = "fraud_detection_engine"
+version = "0.1.0"
+description = "Modular fraud detection engine with FastAPI, MongoDB, and Rules/Policy Engine"
+authors = ["Your Name <you@example.com>"]
+readme = "README.md"
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = "^3.12"
+fastapi = "^0.110.0"
+uvicorn = "^0.29.0"
+pydantic = "^2.6.3"
+motor = "^3.4.0"
+python-dotenv = "^1.0.1"
+pydantic-settings = "^2.9.1"
+streamlit = "^1.45.0"
+pandas = "^2.2.3"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.2.0"
+pytest-asyncio = "^0.23.6"
+httpx = "^0.27.0"
+coverage = "^7.5.1"
+mongomock = "^4.1.2"
+mongomock-motor = "^0.0.21"
+black = "^24.3.0"
+flake8 = "^7.0.0"
+pre-commit = "^3.7.0"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

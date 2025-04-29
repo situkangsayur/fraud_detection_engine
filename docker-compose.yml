@@ -1,0 +1,61 @@
+services:
+  mongo:
+    image: mongo:5.0
+    container_name: mongo
+    ports:
+      - 27018:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    volumes:
+      - ./data/mongo:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo --quiet --username root --password root --authenticationDatabase admin
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ["mongod", "--bind_ip_all"]
+
+  fraud_engine:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        PROJECT_NAME: fraud_detection_engine 
+        PROJECT_VERSION: 0.1.0
+        COMMON_VERSION: 0.1.0
+    container_name: fraud_engine
+    ports:
+      - 8000:8000
+    depends_on:
+      mongo:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - MONGO_URI=mongodb://root:root@mongo:27017
+      - MONGO_DB_NAME=fraud_detection
+      - USE_MOCK=false
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  fraud_ui:
+    image: python:3.12-slim
+    container_name: fraud_ui
+    working_dir: /app
+    volumes:
+      - ./streamlit_app:/app
+    ports:
+      - 8501:8501
+    depends_on:
+      - fraud_engine
+    environment:
+      - BASE_URL=http://fraud_engine:8000/api/v1
+    command: >
+      bash -c "
+      pip install streamlit requests && ls -la &&
+      streamlit run /app/app_streamlit.py --server.port=8501 --server.address=0.0.0.0
+      "
