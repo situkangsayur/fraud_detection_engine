@@ -48,7 +48,7 @@ flowchart TD
 
     subgraph LLM_Module[🧠 LLM Assistant]
         A3 --> C1[LangChain Agent]
-        C1 --> C2[🔎 MongoDB VectorStore (Regulasi)]
+        C1 --> C2["🔎 MongoDB VectorStore - Regulasi"]
         C1 --> C3[🛠️ REST Tool - Hit API FastAPI]
         C1 --> C4[📥 Rule Recommender]
         C1 --> C5[✅ Rule Validator]
