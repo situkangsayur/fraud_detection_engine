@@ -9,9 +9,10 @@ from llm_module.core.llm_provider import get_llm
 def extract_structured_policy():
     retriever = get_live_retriever()
     chain = RetrievalQA.from_chain_type(
+        llm=get_llm()
         # llm=ChatOpenAI(temperature=0), retriever=retriever
-        llm=ChatOllama(
-            base_url="http://192.168.11.3:11434", model="deepseek-8b", temperature=0
+        #        llm=ChatOllama(
+        #            base_url="http://192.168.11.3:11434", model="deepseek-8b", temperature=0
     )
 
     prompt = """

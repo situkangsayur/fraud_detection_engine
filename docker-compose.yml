@@ -58,16 +58,16 @@ services:
       pip install streamlit requests && ls -la &&
       streamlit run /app/app_streamlit.py --server.port=8501 --server.address=0.0.0.0
       "
+
   llm_chat_ui:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: llm_module_base:0.1.0  # gunakan image hasil build llm_module
     container_name: llm_chat_ui
-    command: poetry run streamlit run streamlit_llm_ui/app_llm_chat.py --server.port 8502 --server.address 0.0.0.0
     ports:
       - 8502:8502
     env_file:
       - .env
+    environment:
+      - PYTHONPATH=/app/llm_module
     depends_on:
       - fraud_engine
       - mongo

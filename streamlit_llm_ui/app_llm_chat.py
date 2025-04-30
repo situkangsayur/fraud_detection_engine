@@ -1,4 +1,6 @@
 import streamlit as st
+
+st.set_page_config(page_title="🧠 Fraud LLM Assistant", layout="wide")
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import RetrievalQA
 from llm_module.rag_engine.retriever import get_mongo_retriever
@@ -6,9 +8,9 @@ from llm_module.agent.policy_agent import get_policy_llm_agent
 from llm_module.uploader.regulation_uploader import upload_new_regulation
 from llm_module.audit.audit_logger import log_audit_entry
 from llm_module.summarizer.policy_summary import summarize_policy
-from llm_module.summarizer.structured_extractor import extract_structured_policy
 from llm_module.summarizer.structured_extractor import (
     extract_structured_policy_with_source,
+    extract_structured_policy,
 )
 from llm_module.validator.rule_schema_validator import validate_rule_structure
 
@@ -42,7 +44,6 @@ if query:
 
 
 """
-st.set_page_config(page_title="🧠 Fraud LLM Assistant", layout="wide")
 
 tabs = st.tabs(["🤖 LLM Chat", "📄 Upload Regulation", "🗂️ Audit Trail"])
 
@@ -84,7 +85,7 @@ with tabs[1]:
 with tabs[2]:
     st.title("🗂️ Audit Trail Log Viewer")
 
-    mongo_uri = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+    mongo_uri = os.getenv("MONGO_URI", "mongodb://root:root@localhost:27017")
     db_name = os.getenv("MONGO_DB_NAME", "fraud_detection")
     client = MongoClient(mongo_uri)
     audit_collection = client[db_name]["audit_trail"]

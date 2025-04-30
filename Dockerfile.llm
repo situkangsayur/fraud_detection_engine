@@ -3,23 +3,34 @@ FROM python:3.12-slim-bullseye
 ARG PROJECT_NAME=llm_module
 ARG PROJECT_VERSION=0.1.0
 
-RUN apt-get update && apt-get install -y --no-install-recommends curl build-essential && \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl build-essential && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ENV POETRY_VERSION=1.8.2
 RUN curl -sSL https://install.python-poetry.org | python3 -
 
+# Setup Python environment
 WORKDIR /app
 ENV VIRTUAL_ENV=/opt/venv
 RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 RUN ln -s /root/.local/bin/poetry /opt/venv/bin/poetry
 
+# Copy only what needed to install
 COPY llm_module/dist/${PROJECT_NAME}-${PROJECT_VERSION}.tar.gz /app/
 
-RUN poetry init -n && poetry add /app/${PROJECT_NAME}-${PROJECT_VERSION}.tar.gz
-COPY .env /app/${PROJECT_NAME}/
-# COPY app/seeder/seeder.py /app/${PROJECT_NAME}/seeder.py
-ENV PYTHONPATH=/app
+# Init blank poetry just for install
+RUN poetry init -n && \
+    poetry add /app/${PROJECT_NAME}-${PROJECT_VERSION}.tar.gz
 
-CMD /bin/sh
+# Copy full source code to image
+# COPY llm_module /app/llm_module 
+COPY streamlit_llm_ui/app_llm_chat.py /app/
+COPY .env /app/
+# Set environment
+# ENV PYTHONPATH=/app/${PROJECT_NAME}
+
+# Default entry (for debugging or extension)
+
+CMD ["poetry","run","streamlit", "run", "app_llm_chat.py", "--server.port=8502", "--server.address=0.0.0.0"]

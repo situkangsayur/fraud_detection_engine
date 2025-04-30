@@ -22,4 +22,4 @@ RUN poetry init -n && poetry add /app/${PROJECT_NAME}-${PROJECT_VERSION}.tar.gz
 # COPY app/seeder/seeder.py /app/${PROJECT_NAME}/seeder.py
 ENV PYTHONPATH=/app
 
-CMD /bin/sh
+CMD ["python3"]

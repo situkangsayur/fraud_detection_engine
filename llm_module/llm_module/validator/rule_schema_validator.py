@@ -1,7 +1,7 @@
 import json
 
 
-def validate_rule_structure(json_text: str) -> (bool, str):
+def jalidate_rule_structure(json_text: str) -> (bool, str):
     try:
         rule = json.loads(json_text)
 

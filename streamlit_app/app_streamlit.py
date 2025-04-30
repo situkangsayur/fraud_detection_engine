@@ -1,11 +1,12 @@
 import streamlit as st
+
+st.set_page_config(page_title="Fraud Detection Engine Dashboard", layout="wide")
 import altair as alt
 import requests
 import os
 import pandas as pd
 import time
 
-st.set_page_config(page_title="Fraud Detection Engine Dashboard", layout="wide")
 
 # Base URL FastAPI
 BASE_URL = "http://localhost:8000/api/v1"
