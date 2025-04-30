@@ -3,7 +3,7 @@ import os
 
 def get_llm():
     provider = os.getenv("LLM_PROVIDER", "ollama").lower()
-
+    print(provider)
     if provider == "ollama":
         from langchain_community.llms import Ollama
 
