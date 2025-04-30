@@ -1,138 +1,189 @@
-
-# 🧠 Fraud Policy Engine + LLM Assistant (📊🔍🤖)
-
-Fraud Policy Engine adalah sistem evaluasi risiko transaksi berbasis FastAPI yang kini diperkuat oleh **Large Language Models (LLM)** seperti GPT, Gemini, atau DeepSeek melalui pendekatan **RAG (Retrieval-Augmented Generation)**. Sistem ini mendukung integrasi regulasi OJK/BI secara cerdas, serta mampu **merekomendasikan dan mengevaluasi rules dan policies** secara adaptif dan akurat.
+# 🛡️ Fraud Detection Engine + LLM Assistant – Full Documentation
 
 ---
 
-## 🚀 Fitur Utama
+## 📌 Overview
 
-### 💼 Core Fraud Engine
-- ✅ CRUD User & Transaction
-- ✅ CRUD Policy, Standard Rule, Velocity Rule
-- ✅ Evaluate Transaction Risk (manual & batch)
-- ✅ Risk Score & Classification (Normal/Suspect/Fraud)
-- ✅ Statistik: Per User, Per Rule, Per Policy
-- ✅ Export Laporan CSV + Risk Alerts
+Sistem ini adalah platform modular berbasis FastAPI, MongoDB, Streamlit, dan LLM (GPT/Gemini/Ollama) untuk:
 
-### 🧠 LLM Engine (LangChain + MongoDB)
-- ✅ RAG (Retrieval-Augmented Generation) dari dokumen OJK/BI
-- ✅ Chat Assistant untuk tanya jawab regulasi & fraud policy
-- ✅ Pembuatan rekomendasi rules & evaluasi policy
-- ✅ Analisis rule yang belum tersedia
-- ✅ Penjelasan keputusan sistem risk scoring secara natural
-
----
-
-## 🧱 Arsitektur Integrasi LLM
-
-```mermaid
-graph TD
-    A[User Upload PDF Regulasi] --> B[Text Split & Embed]
-    B --> C[Store ke MongoDB Vector Search]
-    D[User Chat / Tanya Natural Language] --> E[Streamlit UI]
-    E --> F[LangChain Retriever (MongoDB)]
-    F --> G[LLM GPT / Gemini / DeepSeek]
-    G --> H[Jawaban, Rekomendasi Rule/Policy]
-```
+- 🚦 Menilai risiko transaksi secara otomatis
+- ⚙️ Mengelola rule engine berbasis policy, standard, dan velocity rule
+- 🧠 Mengintegrasikan LLM untuk membaca regulasi OJK/BI dan menyarankan struktur rule/policy
+- 📊 Melakukan analisis performa fraud rule/policy
+- 💬 Menyediakan antarmuka Streamlit untuk eksplorasi dan interaksi AI
 
 ---
 
 ## 📂 Struktur Proyek
 
 ```
-fraud-policy-engine/
-├── app/                      # FastAPI Fraud Engine
-│   └── ...
-├── streamlit_app/           # Streamlit Fraud Dashboard
-│   └── app_streamlit.py
-├── llm_module/              # Modul LLM + RAG
-│   ├── rag_engine/
-│   │   ├── retriever.py
-│   │   ├── embedder.py
-│   │   └── loader.py
-│   ├── policy_recommender/
-│   │   └── recommender.py
-│   └── main.py
-├── streamlit_llm_ui/        # Chatbot Interaktif untuk OJK/BI
-│   └── app_llm_chat.py
-├── Dockerfile
+fraud_detection_engine/
+├── app/                     # FastAPI core (user, transaction, rule, policy, processing)
+├── llm_module/              # Modul embedding, retriever, summarizer, agent, validation
+├── streamlit_llm_ui/        # Chat-based Streamlit UI
+├── Dockerfile               # Untuk fraud_engine
+├── Dockerfile.llm_chat      # Untuk llm_chat_ui
+├── Dockerfile.llm_embedder  # Untuk llm_module/main.py
 ├── docker-compose.yml
 ├── .env
-├── README.md
-└── pyproject.toml
+└── README.md
 ```
 
 ---
 
-## ⚙️ Cara Menjalankan
+## 📈 Mermaid Diagram – Arsitektur Umum Fraud Detection Engine + LLM
 
-### 1. Backend Fraud Engine + Dashboard
-```bash
-docker-compose up --build
-```
-- API FastAPI → http://localhost:8000/docs  
-- Dashboard Streamlit → http://localhost:8501  
+```mermaid
+flowchart TD
+    subgraph Frontend
+        A1[🧑 User] --> A2[🖥️ Streamlit UI Fraud Engine]
+        A1 --> A3[💬 Streamlit Chat LLM UI]
+    end
 
-### 2. Modul LLM Chat Assistant (opsional)
-```bash
-poetry run streamlit run streamlit_llm_ui/app_llm_chat.py
+    subgraph CoreEngine[FastAPI Engine]
+        A2 --> B1[🧾 /transaction - Evaluasi transaksi]
+        A2 --> B2[📋 /rule, /policy - CRUD engine]
+        A3 --> B3[📊 /stats - Get statistik rule/policy]
+    end
+
+    subgraph LLM_Module[🧠 LLM Assistant]
+        A3 --> C1[LangChain Agent]
+        C1 --> C2[🔎 MongoDB VectorStore (Regulasi)]
+        C1 --> C3[🛠️ REST Tool - Hit API FastAPI]
+        C1 --> C4[📥 Rule Recommender]
+        C1 --> C5[✅ Rule Validator]
+        C1 --> C6[📤 Auto Poster ke API FastAPI]
+        C1 --> C7[📚 Ringkasan PDF Regulasi]
+    end
+
+    B1 --> D1[📦 MongoDB - Transaksi]
+    B2 --> D2[🧩 MongoDB - Rules & Policy]
+    C1 --> D2
+    C1 --> D3[🗂️ MongoDB - Audit Log]
 ```
-- UI Chat OJK/BI → http://localhost:8502
 
 ---
 
-## 🛢️ Konfigurasi MongoDB Vector Store (.env)
+## 🛠️ Penjelasan Teknis – Implementasi LLM
+
+### 1. RAG (Retrieval-Augmented Generation)
+- Load dokumen regulasi PDF
+- Embedding via OpenAI atau HuggingFace
+- Disimpan ke MongoDB Vector Store
+- Digunakan retriever untuk query berbasis konteks
+
+### 2. LangChain Agent
+- Menggunakan tools:
+  - REST API Tool (fetch stats)
+  - Rule JSON builder
+  - Poster rule
+- Dapat menggunakan OpenAI, Ollama, atau Gemini
+- Memory support untuk multi-turn chat
+
+### 3. Validasi dan Poster
+- Hasil ekstraksi divalidasi menggunakan `rule_schema_validator`
+- Jika valid → dikirim ke API `/rule/standard` atau `/rule/velocity`
+- Jika tidak → ditampilkan sebagai error
+
+### 4. Audit Trail
+- Semua interaksi agent, upload, dan ekstraksi dicatat di collection MongoDB `audit_trail`
+
+---
+
+## 📘 Mermaid – Alur Agent Reasoning untuk Rule Rekomendasi
+
+```mermaid
+sequenceDiagram
+    participant U as User (Streamlit)
+    participant A as LangChain Agent
+    participant R as MongoDB VectorDB
+    participant S as FastAPI Stats API
+    participant V as Rule Validator
+    participant P as FastAPI Rule API
+
+    U->>A: "Tolong buat rule baru..."
+    A->>R: retrieve regulasi dari MongoDB
+    A->>S: fetch stats policy/rule
+    A->>A: reasoning (combine regulasi + statistik)
+    A->>V: validate rule JSON structure
+    alt Valid
+        A->>P: POST rule ke /rule endpoint
+        P-->>A: 200 OK
+        A-->>U: ✅ Rule berhasil dikirim
+    else Invalid
+        V-->>A: ❌ validation failed
+        A-->>U: Tampilkan error dan source
+    end
+```
+
+---
+
+## 🔄 Alur Upload Regulasi dan Auto-Retriever Reload
+
+```mermaid
+sequenceDiagram
+    participant U as User (Upload PDF)
+    participant S as Streamlit LLM UI
+    participant E as Embedder
+    participant M as MongoDB Vector
+    participant C as Retriever Cache
+
+    U->>S: Upload PDF OJK
+    S->>E: Simpan file & proses
+    E->>M: Simpan embedding
+    E->>C: Reset retriever cache
+    S-->>U: ✅ Berhasil, siap digunakan
+```
+
+---
+
+## 🧪 API Endpoint Overview
+
+| Endpoint | Method | Keterangan |
+|----------|--------|------------|
+| `/api/v1/user/` | GET/POST | Manajemen user |
+| `/api/v1/transaction/` | POST/GET | Transaksi baru & daftar |
+| `/api/v1/policy/` | POST/GET | Policy baru & daftar |
+| `/api/v1/rule/standard` | POST/GET | Rule standard |
+| `/api/v1/rule/velocity` | POST/GET | Rule velocity |
+| `/api/v1/process/transaction` | POST | Evaluasi transaksi |
+| `/api/v1/stats/...` | GET | Statistik rule/policy/transaksi |
+
+---
+
+## 🔧 Konfigurasi `.env`
 
 ```dotenv
-MONGO_URI=mongodb://localhost:27017
+MONGO_URI=mongodb://mongo:27017
 MONGO_DB_NAME=fraud_detection
-VECTOR_COLLECTION=fraud_llm.docs
-USE_MOCK=false
+LLM_PROVIDER=ollama
+OLLAMA_MODEL=deepseek-8b-instruct
+OLLAMA_BASE_URL=http://localhost:11434
+OPENAI_API_KEY=your-openai-key
+GOOGLE_API_KEY=your-google-api-key
 ```
 
 ---
 
-## 📦 Dependency Tambahan (LLM)
+## 🛠️ Teknologi
 
-```toml
-[tool.poetry.dependencies]
-langchain = "*"
-pymongo = "*"
-sentence-transformers = "*"
-streamlit = "*"
-pdfplumber = "*"
-altair = "*"
-pandas = "*"
-requests = "*"
-```
+- FastAPI
+- MongoDB
+- Streamlit
+- LangChain
+- Ollama / OpenAI / Gemini
+- Docker + Poetry
 
 ---
 
-## 💬 Contoh Interaksi Natural Language
+## ✅ Status
 
-> "Apakah policy saat ini sesuai OJK No.11 Tahun 2022?"  
-> "Rule apa yang perlu ditambahkan untuk transaksi > 100 juta?"  
-> "Kenapa user123 diklasifikasikan fraud pada April 2025?"
-
----
-
-## ✅ Roadmap Selanjutnya
-
-| Fitur | Status |
-|------|--------|
-| Fraud Engine API + UI | ✅ |
-| Seeder + Docker Compose | ✅ |
-| LLM RAG ke MongoDB | ✅ |
-| Chat Assistant Interaktif | ✅ |
-| Auto Suggest Rules dari Data | ✅ |
-| Evaluasi Policy dari Regulasi | ✅ |
-| Push Notification & Tag Fraud | 🔜 |
-| Visual Analytics & Monitoring | 🔜 |
-
----
-
-## 🤝 Lisensi & Kontribusi
-
-Proyek ini open-source dan dapat digunakan untuk edukasi, riset, dan solusi fintech compliance di Indonesia.
-
+| Komponen | Status |
+|----------|--------|
+| FastAPI Fraud Engine | ✅ |
+| LLM Chat UI | ✅ |
+| LangChain Agent | ✅ |
+| Embedder + Retriever | ✅ |
+| Auto retriever refresh | ✅ |
+| Audit Log | ✅ |
+| Rule Extractor + Validator | ✅ |
