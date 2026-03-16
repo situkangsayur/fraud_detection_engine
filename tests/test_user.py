@@ -1,45 +1,59 @@
 import pytest
-from httpx import AsyncClient
-from app.main import app
+
 
 @pytest.mark.asyncio
-async def test_user_crud():
-    async with AsyncClient(app=app, base_url="http://test") as ac:
-        payload = {
-            "id_user": "unit_test_user",
-            "nama_lengkap": "Unit Test",
-            "email": "unit@example.com",
-            "domain_email": "example.com",
-            "address": "Jl. Unit",
-            "address_zip": "12345",
-            "address_city": "Jakarta",
-            "address_province": "DKI",
-            "address_kecamatan": "Unit",
-            "phone_number": "081234567890"
-        }
-
-        # Create
-        r = await ac.post("/api/v1/user/", json=payload)
+class TestUserAPI:
+    async def test_create_user(self, client, user_payload):
+        r = await client.post("/api/v1/user/", json=user_payload)
         assert r.status_code == 200
-        assert r.json()["success"]
+        body = r.json()
+        assert body["success"] is True
+        assert body["message"] == "User created"
+        assert body["data"]["id_user"] == "test_user_001"
 
-        # List
-        r = await ac.get("/api/v1/user/")
+    async def test_get_user(self, client, user_payload):
+        await client.post("/api/v1/user/", json=user_payload)
+        r = await client.get("/api/v1/user/test_user_001")
         assert r.status_code == 200
-        assert any(u["id_user"] == "unit_test_user" for u in r.json()["data"])
+        assert r.json()["data"]["nama_lengkap"] == "Test User"
 
-        # Update
-        payload["nama_lengkap"] = "Updated Name"
-        r = await ac.put("/api/v1/user/unit_test_user", json=payload)
+    async def test_get_user_not_found(self, client):
+        r = await client.get("/api/v1/user/nonexistent")
+        assert r.status_code == 200
+        assert r.json()["success"] is False
+        assert r.json()["message"] == "User not found"
+
+    async def test_list_users(self, client, user_payload):
+        await client.post("/api/v1/user/", json=user_payload)
+        r = await client.get("/api/v1/user/")
+        assert r.status_code == 200
+        assert len(r.json()["data"]) >= 1
+
+    async def test_list_users_empty(self, client):
+        r = await client.get("/api/v1/user/")
+        assert r.status_code == 200
+        assert r.json()["data"] == []
+
+    async def test_update_user(self, client, user_payload):
+        await client.post("/api/v1/user/", json=user_payload)
+        user_payload["nama_lengkap"] = "Updated Name"
+        r = await client.put("/api/v1/user/test_user_001", json=user_payload)
         assert r.status_code == 200
         assert r.json()["message"] == "User updated"
 
-        # Get
-        r = await ac.get("/api/v1/user/unit_test_user")
+    async def test_update_user_not_found(self, client, user_payload):
+        r = await client.put("/api/v1/user/nonexistent", json=user_payload)
         assert r.status_code == 200
-        assert r.json()["data"]["nama_lengkap"] == "Updated Name"
+        assert r.json()["success"] is False
 
-        # Delete
-        r = await ac.delete("/api/v1/user/unit_test_user")
+    async def test_delete_user(self, client, user_payload):
+        await client.post("/api/v1/user/", json=user_payload)
+        r = await client.delete("/api/v1/user/test_user_001")
         assert r.status_code == 200
         assert r.json()["message"] == "User deleted"
+
+    async def test_delete_user_not_found(self, client):
+        r = await client.delete("/api/v1/user/nonexistent")
+        assert r.status_code == 200
+        assert r.json()["success"] is False
+        assert r.json()["message"] == "User not found"

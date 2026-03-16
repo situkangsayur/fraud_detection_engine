@@ -1,0 +1,19 @@
+# Docker Compose for Development
+# Hanya menjalankan dependencies (MongoDB), app inti dijalankan langsung via `make run`
+services:
+  mongo:
+    image: mongo:5.0
+    container_name: mongo_dev
+    ports:
+      - 27018:27017
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    volumes:
+      - ./data/mongo_dev:/data/db
+    healthcheck:
+      test: echo 'db.runCommand("ping").ok' | mongo --quiet --username root --password root --authenticationDatabase admin
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ["mongod", "--bind_ip_all"]

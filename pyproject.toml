@@ -26,6 +26,7 @@ mongomock-motor = "^0.0.21"
 black = "^24.3.0"
 flake8 = "^7.0.0"
 pre-commit = "^3.7.0"
+pytest-cov = "^7.0.0"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
