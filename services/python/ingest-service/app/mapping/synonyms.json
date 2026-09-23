@@ -1,0 +1,676 @@
+{
+  "_comment": "Bilingual (EN/ID) synonym dictionary for mapping suggestions. target → synonyms (normalised snake_case), accepted inferred types, optional pii kind that strongly implies the target. Edit freely; no code change needed.",
+  "targets": {
+    "event.external_id": {
+      "synonyms": [
+        "no_ref",
+        "nomor_ref",
+        "no_referensi",
+        "ref_id",
+        "trx_id",
+        "transaction_id",
+        "txn_id",
+        "id_transaksi",
+        "no_transaksi",
+        "nomor_transaksi",
+        "order_id",
+        "id_order",
+        "no_order",
+        "event_id",
+        "reference",
+        "ref_no",
+        "invoice_no",
+        "no_invoice",
+        "id"
+      ],
+      "types": [
+        "string",
+        "integer"
+      ]
+    },
+    "event.occurred_at": {
+      "synonyms": [
+        "occurred_at",
+        "created_at",
+        "timestamp",
+        "ts",
+        "event_time",
+        "transaction_time",
+        "trx_time",
+        "trx_date",
+        "tgl_transaksi",
+        "tanggal_transaksi",
+        "waktu_transaksi",
+        "tanggal",
+        "tgl",
+        "waktu",
+        "datetime",
+        "date",
+        "time",
+        "order_date",
+        "tgl_order",
+        "created"
+      ],
+      "types": [
+        "datetime"
+      ]
+    },
+    "event.customer_external_id": {
+      "synonyms": [
+        "customer_id",
+        "user_id",
+        "id_user",
+        "userid",
+        "id_customer",
+        "id_pelanggan",
+        "pelanggan_id",
+        "nasabah_id",
+        "id_nasabah",
+        "cif",
+        "no_cif",
+        "member_id",
+        "account_id",
+        "buyer_id",
+        "id_pembeli",
+        "customer",
+        "user",
+        "uid"
+      ],
+      "types": [
+        "string",
+        "integer"
+      ]
+    },
+    "event.amount": {
+      "synonyms": [
+        "amount",
+        "amt",
+        "total",
+        "total_amount",
+        "grand_total",
+        "nominal",
+        "jumlah",
+        "jumlah_transaksi",
+        "nilai",
+        "nilai_transaksi",
+        "harga",
+        "total_harga",
+        "total_bayar",
+        "price",
+        "value",
+        "trx_amount"
+      ],
+      "types": [
+        "number",
+        "integer"
+      ]
+    },
+    "event.currency": {
+      "synonyms": [
+        "currency",
+        "ccy",
+        "mata_uang",
+        "currency_code"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.channel": {
+      "synonyms": [
+        "channel",
+        "kanal",
+        "platform",
+        "source_channel",
+        "saluran"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.status": {
+      "synonyms": [
+        "status",
+        "trx_status",
+        "status_transaksi",
+        "state",
+        "payment_status"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.merchant_id": {
+      "synonyms": [
+        "merchant_id",
+        "id_merchant",
+        "seller_id",
+        "id_penjual",
+        "toko_id",
+        "id_toko",
+        "store_id",
+        "shop_id",
+        "mid"
+      ],
+      "types": [
+        "string",
+        "integer"
+      ]
+    },
+    "event.merchant_category": {
+      "synonyms": [
+        "merchant_category",
+        "mcc",
+        "kategori_merchant",
+        "category",
+        "kategori"
+      ],
+      "types": [
+        "string",
+        "integer"
+      ]
+    },
+    "event.payment_method": {
+      "synonyms": [
+        "payment_method",
+        "payment_type",
+        "metode_pembayaran",
+        "metode_bayar",
+        "cara_bayar",
+        "jenis_pembayaran",
+        "pay_method",
+        "metode",
+        "pembayaran_metode"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.instrument_fingerprint": {
+      "synonyms": [
+        "card_number",
+        "card_no",
+        "no_kartu",
+        "nomor_kartu",
+        "pan",
+        "cc_number",
+        "credit_card",
+        "kartu_kredit",
+        "card"
+      ],
+      "types": [
+        "string",
+        "integer"
+      ],
+      "pii": "pan"
+    },
+    "event.issuer_country": {
+      "synonyms": [
+        "issuer_country",
+        "card_country",
+        "negara_penerbit",
+        "bin_country",
+        "negara_penerbit",
+        "pembayaran_negara_penerbit"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.recipient_fingerprint": {
+      "synonyms": [
+        "beneficiary_account",
+        "recipient_account",
+        "rekening_tujuan",
+        "no_rek_tujuan",
+        "norek_tujuan",
+        "to_account",
+        "destination_account",
+        "beneficiary",
+        "penerima_rekening"
+      ],
+      "types": [
+        "string",
+        "integer"
+      ],
+      "pii": "account_number"
+    },
+    "event.device_id": {
+      "synonyms": [
+        "device_id",
+        "id_device",
+        "device",
+        "perangkat",
+        "id_perangkat",
+        "device_fingerprint",
+        "fingerprint",
+        "imei",
+        "android_id",
+        "idfa",
+        "perangkat_id"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.ip_address": {
+      "synonyms": [
+        "ip_address",
+        "ip",
+        "client_ip",
+        "alamat_ip",
+        "remote_addr",
+        "ip_addr",
+        "perangkat_ip"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.user_agent": {
+      "synonyms": [
+        "user_agent",
+        "ua",
+        "browser"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.geo_country": {
+      "synonyms": [
+        "geo_country",
+        "country",
+        "negara",
+        "ip_country",
+        "country_code"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.geo_city": {
+      "synonyms": [
+        "geo_city",
+        "city",
+        "kota",
+        "ip_city"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.latitude": {
+      "synonyms": [
+        "latitude",
+        "lat"
+      ],
+      "types": [
+        "number"
+      ]
+    },
+    "event.longitude": {
+      "synonyms": [
+        "longitude",
+        "lon",
+        "lng",
+        "long"
+      ],
+      "types": [
+        "number"
+      ]
+    },
+    "event.promo_code": {
+      "synonyms": [
+        "promo_code",
+        "voucher",
+        "voucher_code",
+        "kode_voucher",
+        "kode_promo",
+        "promo",
+        "coupon",
+        "coupon_code",
+        "kupon"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.discount_amount": {
+      "synonyms": [
+        "discount_amount",
+        "discount",
+        "diskon",
+        "potongan",
+        "nilai_diskon",
+        "promo_amount"
+      ],
+      "types": [
+        "number",
+        "integer"
+      ]
+    },
+    "event.cashback_amount": {
+      "synonyms": [
+        "cashback_amount",
+        "cashback",
+        "nilai_cashback"
+      ],
+      "types": [
+        "number",
+        "integer"
+      ]
+    },
+    "event.ref_transaction_id": {
+      "synonyms": [
+        "ref_transaction_id",
+        "original_transaction_id",
+        "parent_trx_id",
+        "id_transaksi_asal",
+        "ref_trx",
+        "related_order_id",
+        "original_order_id",
+        "ref_transaksi",
+        "referensi_transaksi",
+        "no_ref_asal",
+        "ref_asal"
+      ],
+      "types": [
+        "string",
+        "integer"
+      ]
+    },
+    "event.shipping_address": {
+      "synonyms": [
+        "shipping_address",
+        "alamat_pengiriman",
+        "alamat_kirim",
+        "delivery_address",
+        "ship_address",
+        "address_shipping",
+        "pengiriman_alamat",
+        "shipping_alamat",
+        "alamat_penerima"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.billing_address": {
+      "synonyms": [
+        "billing_address",
+        "alamat_tagihan",
+        "alamat_penagihan",
+        "bill_address",
+        "penagihan_alamat",
+        "billing_alamat"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.account_change_type": {
+      "synonyms": [
+        "account_change_type",
+        "change_type",
+        "jenis_perubahan",
+        "perubahan"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "event.login_success": {
+      "synonyms": [
+        "login_success",
+        "success",
+        "berhasil",
+        "is_success",
+        "login_status",
+        "login_berhasil",
+        "berhasil_login",
+        "status_login"
+      ],
+      "types": [
+        "bool"
+      ]
+    },
+    "event.api_client_id": {
+      "synonyms": [
+        "api_client_id",
+        "client_id",
+        "api_key_id",
+        "partner_id",
+        "app_id",
+        "id_klien_api",
+        "klien_api",
+        "id_klien",
+        "id_mitra"
+      ],
+      "types": [
+        "string"
+      ]
+    },
+    "customer.full_name": {
+      "synonyms": [
+        "full_name",
+        "name",
+        "nama",
+        "nama_lengkap",
+        "customer_name",
+        "nama_pelanggan",
+        "nama_nasabah",
+        "user_name",
+        "pengguna_nama"
+      ],
+      "types": [
+        "string"
+      ],
+      "pii": "name"
+    },
+    "customer.email": {
+      "synonyms": [
+        "email",
+        "e_mail",
+        "email_address",
+        "alamat_email",
+        "surel"
+      ],
+      "types": [
+        "string"
+      ],
+      "pii": "email"
+    },
+    "customer.phone": {
+      "synonyms": [
+        "phone",
+        "phone_number",
+        "no_hp",
+        "nomor_hp",
+        "no_telp",
+        "nomor_telepon",
+        "telepon",
+        "hp",
+        "msisdn",
+        "mobile",
+        "handphone",
+        "no_handphone",
+        "wa",
+        "whatsapp"
+      ],
+      "types": [
+        "string",
+        "integer"
+      ],
+      "pii": "phone"
+    },
+    "customer.registered_at": {
+      "synonyms": [
+        "registered_at",
+        "register_date",
+        "tgl_daftar",
+        "tanggal_daftar",
+        "join_date",
+        "signup_date",
+        "created_account",
+        "member_since",
+        "tgl_registrasi"
+      ],
+      "types": [
+        "datetime"
+      ]
+    },
+    "customer.kyc_level": {
+      "synonyms": [
+        "kyc_level",
+        "kyc",
+        "level_kyc",
+        "verification_level",
+        "tingkat_verifikasi"
+      ],
+      "types": [
+        "integer",
+        "string"
+      ]
+    },
+    "customer.segment": {
+      "synonyms": [
+        "segment",
+        "segmen",
+        "tier",
+        "membership",
+        "customer_type",
+        "jenis_nasabah"
+      ],
+      "types": [
+        "string"
+      ]
+    }
+  },
+  "event_type_field": [
+    "event_type",
+    "type",
+    "trx_type",
+    "transaction_type",
+    "jenis_transaksi",
+    "jenis",
+    "tipe",
+    "activity",
+    "aktivitas",
+    "action",
+    "event"
+  ],
+  "event_type_values": {
+    "transaction": [
+      "purchase",
+      "payment",
+      "order",
+      "checkout",
+      "pembelian",
+      "pembayaran",
+      "transaksi",
+      "trx",
+      "sale",
+      "penjualan",
+      "topup",
+      "transfer"
+    ],
+    "login": [
+      "login",
+      "signin",
+      "sign_in",
+      "masuk",
+      "log_masuk"
+    ],
+    "account_change": [
+      "account_change",
+      "profile_update",
+      "change_password",
+      "ubah_password",
+      "ganti_password",
+      "update_profile",
+      "ubah_data",
+      "ubah_akun",
+      "perubahan_akun",
+      "ganti_data",
+      "update_akun",
+      "ubah_profil"
+    ],
+    "promo_redemption": [
+      "voucher",
+      "promo",
+      "redeem",
+      "promo_redemption",
+      "klaim_voucher",
+      "coupon"
+    ],
+    "payout": [
+      "payout",
+      "withdraw",
+      "withdrawal",
+      "tarik_dana",
+      "penarikan",
+      "disbursement"
+    ],
+    "registration": [
+      "register",
+      "registration",
+      "signup",
+      "sign_up",
+      "daftar",
+      "pendaftaran"
+    ],
+    "refund": [
+      "refund",
+      "return",
+      "retur",
+      "pengembalian",
+      "chargeback"
+    ]
+  },
+  "customer_context": [
+    "user",
+    "customer",
+    "nasabah",
+    "pelanggan",
+    "buyer",
+    "pembeli",
+    "member",
+    "account",
+    "akun",
+    "pengguna",
+    "nasabah_data",
+    "profil",
+    "profile"
+  ],
+  "label_field": [
+    "is_fraud",
+    "fraud",
+    "label",
+    "is_chargeback",
+    "chargeback",
+    "penipuan",
+    "is_penipuan",
+    "fraud_flag",
+    "target",
+    "class"
+  ],
+  "fraud_type_field": [
+    "fraud_type",
+    "fraud_category",
+    "jenis_fraud",
+    "kategori_fraud",
+    "tipe_fraud"
+  ],
+  "drop_hints": [
+    "cvv",
+    "cvc",
+    "cvv2",
+    "pin",
+    "password",
+    "kata_sandi",
+    "otp",
+    "card_expiry_cvv",
+    "security_code"
+  ]
+}

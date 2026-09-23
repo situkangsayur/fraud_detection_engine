@@ -1,0 +1,314 @@
+{
+  "stage": "returns",
+  "description": "Return / refund requests: serial returners, repeated claims, linked accounts.",
+  "reference_lists": [
+    {
+      "name": "serial_returners",
+      "description": "Customers under refund-abuse watch",
+      "list_type": "watchlist",
+      "key_kind": "customer_external_id",
+      "columns": [],
+      "entries": []
+    }
+  ],
+  "rules": [
+    {
+      "code": "RL-RET-SERIAL",
+      "name": "Serial returner",
+      "description": ">= 5 refunds by the customer in 90 days",
+      "kind": "velocity",
+      "typologies": [
+        "refund_abuse"
+      ],
+      "event_types": [
+        "refund"
+      ],
+      "risk_score": 50,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "velocity",
+        "history_event_types": [
+          "refund"
+        ],
+        "group_by": [
+          "customer_id"
+        ],
+        "window": {
+          "duration": "90d"
+        },
+        "aggregate": {
+          "fn": "count"
+        },
+        "include_current": true,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 5
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-RET-REPEAT-CLAIM",
+      "name": "Repeated claim on the same order",
+      "description": ">= 2 refund requests referencing the same original transaction in 30 days",
+      "kind": "composite",
+      "typologies": [
+        "refund_abuse"
+      ],
+      "event_types": [
+        "refund"
+      ],
+      "risk_score": 60,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "composite",
+        "gate": {
+          "left": {
+            "type": "field",
+            "path": "event.ref_transaction_id"
+          },
+          "op": "is_not_null"
+        },
+        "history_filter": {
+          "all": [
+            {
+              "left": {
+                "type": "hist",
+                "path": "ref_transaction_id"
+              },
+              "op": "eq",
+              "right": {
+                "type": "field",
+                "path": "event.ref_transaction_id"
+              }
+            }
+          ]
+        },
+        "velocity": {
+          "history_event_types": [
+            "refund"
+          ],
+          "group_by": [
+            "customer_id"
+          ],
+          "window": {
+            "duration": "30d"
+          },
+          "aggregate": {
+            "fn": "count"
+          },
+          "include_current": true,
+          "compare": {
+            "op": "gte",
+            "right": {
+              "type": "const",
+              "value": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-RET-NEW-HIGH-VALUE",
+      "name": "High-value refund on a new account",
+      "description": "Account < 30 days and refund > 3 jt",
+      "kind": "simple",
+      "typologies": [
+        "refund_abuse"
+      ],
+      "event_types": [
+        "refund"
+      ],
+      "risk_score": 35,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "field",
+                "path": "features.account_age_days"
+              },
+              "op": "lt",
+              "right": {
+                "type": "const",
+                "value": 30
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "event.amount"
+              },
+              "op": "gt",
+              "right": {
+                "type": "const",
+                "value": 3000000
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-RET-WATCHLIST",
+      "name": "On returner watchlist",
+      "description": "Customer is on the serial_returners watchlist",
+      "kind": "reference",
+      "typologies": [
+        "refund_abuse"
+      ],
+      "event_types": [
+        "refund"
+      ],
+      "risk_score": 40,
+      "trapped_score": 0,
+      "action": "force_review",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "serial_returners",
+        "key": {
+          "type": "field",
+          "path": "customer.external_id"
+        },
+        "mode": "exists"
+      }
+    },
+    {
+      "code": "RL-RET-LINKED",
+      "name": "Linked account ring",
+      "description": "Connected component of >= 5 customers via address/phone/device/bank account",
+      "kind": "graph",
+      "typologies": [
+        "refund_abuse"
+      ],
+      "event_types": [
+        "refund"
+      ],
+      "risk_score": 40,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "graph",
+        "metric": "component_size",
+        "link_kinds": [
+          "address",
+          "phone",
+          "device",
+          "bank_account"
+        ],
+        "include_similar": true,
+        "max_depth": 3,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 5
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-RET-BURST",
+      "name": "Refund burst",
+      "description": "Today's refund count is improbable under the customer's daily Poisson rate (p < 1%)",
+      "kind": "velocity",
+      "typologies": [
+        "refund_abuse"
+      ],
+      "event_types": [
+        "refund"
+      ],
+      "risk_score": 30,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "velocity",
+        "history_event_types": [
+          "refund"
+        ],
+        "group_by": [
+          "customer_id"
+        ],
+        "window": {
+          "duration": "30d"
+        },
+        "aggregate": {
+          "fn": "count"
+        },
+        "statistic": {
+          "fn": "poisson_tail",
+          "bucket": "1d"
+        },
+        "min_samples": 7,
+        "compare": {
+          "op": "lt",
+          "right": {
+            "type": "const",
+            "value": 0.01
+          }
+        }
+      }
+    }
+  ],
+  "rulesets": [
+    {
+      "code": "RS-RETURNS",
+      "name": "Refund abuse",
+      "description": "Return and refund request screening",
+      "event_types": [
+        "refund"
+      ],
+      "typologies": [
+        "refund_abuse"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-RET-SERIAL",
+          "weight": 1
+        },
+        {
+          "rule": "RL-RET-REPEAT-CLAIM",
+          "weight": 1
+        },
+        {
+          "rule": "RL-RET-NEW-HIGH-VALUE",
+          "weight": 1
+        },
+        {
+          "rule": "RL-RET-WATCHLIST",
+          "weight": 1
+        },
+        {
+          "rule": "RL-RET-LINKED",
+          "weight": 1
+        },
+        {
+          "rule": "RL-RET-BURST",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

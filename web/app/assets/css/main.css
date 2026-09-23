@@ -1,0 +1,21 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root {
+  --ui-radius: 0.375rem;
+}
+
+/* Decision colours shared by badges, charts and graph nodes */
+:root {
+  --fp-approve: var(--color-emerald-500);
+  --fp-review: var(--color-amber-500);
+  --fp-decline: var(--color-rose-500);
+}
+
+.fp-mono { font-family: var(--font-mono); }
+.fp-json { font-family: var(--font-mono); font-size: 0.8rem; white-space: pre-wrap; word-break: break-word; }

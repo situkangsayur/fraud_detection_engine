@@ -1,0 +1,36 @@
+Fraud Detection Platform
+Copyright (C) 2025-2026 Hendri Karisma <situkangsayur@gmail.com>
+
+This program is free software: you can redistribute it and/or modify it under the terms of the
+GNU Affero General Public License, version 3 only (AGPL-3.0-only), as published by the Free
+Software Foundation. See the LICENSE file for the full license text.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY;
+without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU Affero General Public License for more details.
+
+-------------------------------------------------------------------------------------------------
+Additional terms under section 7 of the GNU AGPL v3
+-------------------------------------------------------------------------------------------------
+
+Pursuant to section 7(b) of the GNU Affero General Public License version 3, the following
+additional terms apply to this program and to every covered work based on it:
+
+  1. Author attribution must be preserved. Hendri Karisma must remain credited as the original
+     author and creator of this program. The copyright notices, this NOTICE file and the
+     AUTHORS file must be kept intact in all copies, modified versions and derivative works,
+     in source form and, where the program displays legal notices (for example an "About"
+     page, API information endpoint or documentation), in that interactive form as well.
+
+  2. Contributor attribution must be preserved. Credits for all prior contributors listed in
+     the AUTHORS file (or in the version-control history) must not be removed. Modifiers may
+     add their own names and a description of their changes, but may not remove or alter the
+     existing attributions.
+
+  3. Modified versions must be marked as changed, in reasonable ways, as different from the
+     original version, and must remain licensed under AGPL-3.0-only together with these
+     additional terms.
+
+In short: you may use, study, run, share and modify this software, including in a network
+service, but modified versions must stay under the same license, their source must be offered to
+their network users, and the original author and all previous contributors must stay credited.

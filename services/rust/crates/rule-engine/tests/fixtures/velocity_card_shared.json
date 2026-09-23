@@ -1,0 +1,26 @@
+{
+  "kind": "velocity",
+  "history_event_types": [
+    "transaction"
+  ],
+  "group_by": [
+    "instrument_fingerprint"
+  ],
+  "window": {
+    "duration": "30d"
+  },
+  "aggregate": {
+    "fn": "distinct_count",
+    "field": "customer_id"
+  },
+  "statistic": null,
+  "include_current": true,
+  "min_samples": 1,
+  "compare": {
+    "op": "gte",
+    "right": {
+      "type": "const",
+      "value": 3
+    }
+  }
+}

@@ -1,0 +1,324 @@
+{
+  "stage": "promo",
+  "description": "Voucher / cashback / discount abuse: promo farms of linked accounts, device reuse, new accounts.",
+  "reference_lists": [
+    {
+      "name": "promo_device_blacklist",
+      "description": "Devices banned from promotions",
+      "list_type": "blacklist",
+      "key_kind": "device_id",
+      "columns": [],
+      "entries": []
+    }
+  ],
+  "rules": [
+    {
+      "code": "RL-PROMO-DEVICE-FARM",
+      "name": "Promo farm on one device",
+      "description": ">= 3 distinct customers redeemed the same promo code with a discount on the same device in 7 days",
+      "kind": "composite",
+      "typologies": [
+        "promo_abuse"
+      ],
+      "event_types": [
+        "promo_redemption",
+        "transaction"
+      ],
+      "risk_score": 60,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "composite",
+        "gate": {
+          "left": {
+            "type": "field",
+            "path": "event.promo_code"
+          },
+          "op": "is_not_null"
+        },
+        "history_filter": {
+          "all": [
+            {
+              "left": {
+                "type": "hist",
+                "path": "promo_code"
+              },
+              "op": "eq",
+              "right": {
+                "type": "field",
+                "path": "event.promo_code"
+              }
+            },
+            {
+              "left": {
+                "type": "hist",
+                "path": "discount_amount"
+              },
+              "op": "gt",
+              "right": {
+                "type": "const",
+                "value": 0
+              }
+            }
+          ]
+        },
+        "velocity": {
+          "history_event_types": [
+            "promo_redemption",
+            "transaction"
+          ],
+          "group_by": [
+            "device_id"
+          ],
+          "window": {
+            "duration": "7d"
+          },
+          "aggregate": {
+            "fn": "distinct_count",
+            "field": "customer_id"
+          },
+          "include_current": true,
+          "compare": {
+            "op": "gte",
+            "right": {
+              "type": "const",
+              "value": 3
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PROMO-NEW-ACCOUNT",
+      "name": "Fresh account, deep discount",
+      "description": "Account < 3 days and discount ratio > 30%",
+      "kind": "simple",
+      "typologies": [
+        "promo_abuse"
+      ],
+      "event_types": [
+        "promo_redemption",
+        "transaction"
+      ],
+      "risk_score": 35,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "field",
+                "path": "features.account_age_days"
+              },
+              "op": "lt",
+              "right": {
+                "type": "const",
+                "value": 3
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "features.discount_ratio"
+              },
+              "op": "gt",
+              "right": {
+                "type": "const",
+                "value": 0.3
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-PROMO-DEVICE-REUSE",
+      "name": "Device redeeming many promos",
+      "description": "> 5 promo redemptions from the device in 30 days",
+      "kind": "simple",
+      "typologies": [
+        "promo_abuse"
+      ],
+      "event_types": [
+        "promo_redemption",
+        "transaction"
+      ],
+      "risk_score": 40,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "left": {
+            "type": "field",
+            "path": "features.promo_cnt_device_30d"
+          },
+          "op": "gt",
+          "right": {
+            "type": "const",
+            "value": 5
+          }
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-PROMO-GRAPH-FARM",
+      "name": "Linked multi-accounts",
+      "description": "Customer shares >= 3 entities (device/address/phone/bank account) with others",
+      "kind": "graph",
+      "typologies": [
+        "promo_abuse"
+      ],
+      "event_types": [
+        "promo_redemption",
+        "transaction"
+      ],
+      "risk_score": 40,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "graph",
+        "metric": "shared_entity_count",
+        "link_kinds": [
+          "device",
+          "address",
+          "phone",
+          "bank_account"
+        ],
+        "include_similar": true,
+        "max_depth": 1,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 3
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PROMO-CASHBACK-SUM",
+      "name": "Cashback concentration",
+      "description": "Cashback on one device > 1 jt in 30 days",
+      "kind": "velocity",
+      "typologies": [
+        "promo_abuse"
+      ],
+      "event_types": [
+        "promo_redemption",
+        "transaction"
+      ],
+      "risk_score": 35,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "velocity",
+        "history_event_types": [
+          "promo_redemption",
+          "transaction"
+        ],
+        "group_by": [
+          "device_id"
+        ],
+        "window": {
+          "duration": "30d"
+        },
+        "aggregate": {
+          "fn": "sum",
+          "field": "cashback_amount"
+        },
+        "include_current": true,
+        "compare": {
+          "op": "gt",
+          "right": {
+            "type": "const",
+            "value": 1000000
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PROMO-BL-DEVICE",
+      "name": "Promo-banned device",
+      "description": "Device is on the promo device blacklist",
+      "kind": "reference",
+      "typologies": [
+        "promo_abuse"
+      ],
+      "event_types": [
+        "promo_redemption",
+        "transaction"
+      ],
+      "risk_score": 100,
+      "trapped_score": 0,
+      "action": "force_decline",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "promo_device_blacklist",
+        "key": {
+          "type": "field",
+          "path": "event.device_id"
+        },
+        "mode": "exists"
+      }
+    }
+  ],
+  "rulesets": [
+    {
+      "code": "RS-PROMO",
+      "name": "Promo abuse",
+      "description": "Voucher, discount and cashback abuse",
+      "event_types": [
+        "promo_redemption",
+        "transaction"
+      ],
+      "typologies": [
+        "promo_abuse"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-PROMO-DEVICE-FARM",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PROMO-NEW-ACCOUNT",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PROMO-DEVICE-REUSE",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PROMO-GRAPH-FARM",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PROMO-CASHBACK-SUM",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PROMO-BL-DEVICE",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

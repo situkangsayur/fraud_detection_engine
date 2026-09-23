@@ -1,0 +1,63 @@
+{
+  "kind": "composite",
+  "gate": {
+    "all": [
+      {
+        "left": {
+          "type": "field",
+          "path": "event.promo_code"
+        },
+        "op": "is_not_null"
+      }
+    ]
+  },
+  "history_filter": {
+    "all": [
+      {
+        "left": {
+          "type": "hist",
+          "path": "promo_code"
+        },
+        "op": "eq",
+        "right": {
+          "type": "field",
+          "path": "event.promo_code"
+        }
+      },
+      {
+        "left": {
+          "type": "hist",
+          "path": "discount_amount"
+        },
+        "op": "gt",
+        "right": {
+          "type": "const",
+          "value": 0
+        }
+      }
+    ]
+  },
+  "velocity": {
+    "history_event_types": [
+      "promo_redemption",
+      "transaction"
+    ],
+    "group_by": [
+      "device_id"
+    ],
+    "window": {
+      "duration": "7d"
+    },
+    "aggregate": {
+      "fn": "distinct_count",
+      "field": "customer_id"
+    },
+    "compare": {
+      "op": "gte",
+      "right": {
+        "type": "const",
+        "value": 3
+      }
+    }
+  }
+}

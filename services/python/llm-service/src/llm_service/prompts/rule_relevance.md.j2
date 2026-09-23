@@ -1,0 +1,20 @@
+{#- prompt: rule_relevance  version: 1 -#}
+{% include "system_base.md.j2" %}
+
+## Task: rule relevance review (last {{ since_days }} days)
+For EVERY rule in `<rules>` decide `keep`, `tune` or `retire` using:
+- effectiveness: hit_rate, precision (labelled fraud among hits), trapped counts, last_hit_at (stale rules),
+- data change: feature drift (PSI) of the fields the rule uses,
+- regulation fit: whether the attached regulations still require / support the control (cite chunks).
+Rules with no hits for a long time, very low precision with high volume, or contradicted by a newer regulation are candidates for `retire`/`tune`. Rules that implement a regulatory obligation must not be retired without a replacement.
+For `tune`, give a concrete suggested change (e.g. threshold, window, group_by) — do not output full rule JSON here.
+
+<rules>{{ rules | tojson }}</rules>
+<rules_performance>{{ performance | tojson }}</rules_performance>
+<feature_drift>{{ drift | tojson }}</feature_drift>
+{% for d in documents -%}
+<document code="{{ d.code }}" section="{{ d.section }}">
+{{ d.text }}
+</document>
+{% endfor %}
+Return JSON matching the provided schema. `summary_md` is a markdown report (headings, a table of verdicts, key risks).

@@ -1,73 +1,335 @@
+# Fraud Detection Platform v2 — full stack.
+#   cp .env.example .env   # then change every CHANGE_ME
+#   docker compose up -d --build
+#   docker compose --profile seed run --rm simulator        # optional demo data
+#   GPU for Ollama: docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
+# Only the gateway is published: API on ${GATEWAY_HOST_PORT:-8080}, web UI on ${WEB_HOST_PORT:-3000}. Both are
+# restricted to ALLOWED_SOURCE_RANGES (Traefik ipAllowList); everything else stays on internal networks.
+
+name: fraud-platform
+
+x-service: &service
+  restart: unless-stopped
+  logging:
+    driver: json-file
+    options: { max-size: "10m", max-file: "3" }
+  security_opt: ["no-new-privileges:true"]
+
+x-common-env: &common-env
+  INTERNAL_API_TOKEN: ${INTERNAL_API_TOKEN:?set INTERNAL_API_TOKEN}
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+  RUST_LOG: ${LOG_LEVEL:-info}
+
+x-http-health: &http-health
+  interval: 10s
+  timeout: 5s
+  retries: 12
+  start_period: 20s
+
 services:
-  mongo:
-    image: mongo:5.0
-    container_name: mongo
-    ports:
-      - 27018:27017
+  # ---------------------------------------------------------------- data stores
+  postgres:
+    <<: *service
+    image: postgres:16.4-alpine
     environment:
-      MONGO_INITDB_ROOT_USERNAME: root
-      MONGO_INITDB_ROOT_PASSWORD: root
+      POSTGRES_DB: ${POSTGRES_DB:-fraud}
+      POSTGRES_USER: ${POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_SUPERUSER_PASSWORD:?set POSTGRES_SUPERUSER_PASSWORD}
+      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD:?}
+      CORE_API_DB_PASSWORD: ${CORE_API_DB_PASSWORD:?}
+      RULE_SERVICE_DB_PASSWORD: ${RULE_SERVICE_DB_PASSWORD:?}
+      GRAPH_SERVICE_DB_PASSWORD: ${GRAPH_SERVICE_DB_PASSWORD:?}
+      ML_SERVICE_DB_PASSWORD: ${ML_SERVICE_DB_PASSWORD:?}
+      LLM_SERVICE_DB_PASSWORD: ${LLM_SERVICE_DB_PASSWORD:?}
+      INGEST_SERVICE_DB_PASSWORD: ${INGEST_SERVICE_DB_PASSWORD:?}
     volumes:
-      - ./data/mongo:/data/db
+      - pg_data:/var/lib/postgresql/data
+      - ./deploy/postgres/init:/docker-entrypoint-initdb.d:ro
+    ports: ["127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"]
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo --quiet --username root --password root --authenticationDatabase admin
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  opensearch:
+    <<: *service
+    image: opensearchproject/opensearch:2.19.1
+    environment:
+      discovery.type: single-node
+      bootstrap.memory_lock: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms${OPENSEARCH_HEAP:-1g} -Xmx${OPENSEARCH_HEAP:-1g}"
+      # Dev default: security plugin off, reachable only on the internal network.
+      # Production: enable the security plugin + TLS (docs/guides/deployment.md).
+      DISABLE_SECURITY_PLUGIN: "true"
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+    ulimits:
+      memlock: { soft: -1, hard: -1 }
+      nofile: { soft: 65536, hard: 65536 }
+    volumes:
+      - os_data:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs 'http://localhost:9200/_cluster/health?wait_for_status=yellow&timeout=5s' || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+    networks: [backend]
+
+  ollama:
+    <<: *service
+    image: ollama/ollama:0.12.3
+    volumes:
+      - ollama_data:/root/.ollama
+    ports: ["127.0.0.1:${OLLAMA_HOST_PORT:-11434}:11434"]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
       interval: 10s
       timeout: 5s
-      retries: 5
-    command: ["mongod", "--bind_ip_all"]
+      retries: 30
+    networks: [backend]
 
-  fraud_engine:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        PROJECT_NAME: fraud_detection_engine 
-        PROJECT_VERSION: 0.1.0
-    container_name: fraud_engine
-    ports:
-      - 8000:8000
+  ollama-pull:
+    image: ollama/ollama:0.12.3
     depends_on:
-      mongo:
-        condition: service_healthy
-    env_file:
-      - .env
+      ollama: { condition: service_healthy }
     environment:
-      - MONGO_URI=mongodb://root:root@mongo:27017
-      - MONGO_DB_NAME=fraud_detection
-      - USE_MOCK=false
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["/bin/sh", "-c", "ollama pull ${OLLAMA_CHAT_MODEL:-qwen2.5:7b-instruct} && ollama pull ${OLLAMA_EMBED_MODEL:-bge-m3}"]
+    restart: "no"
+    networks: [backend]
+
+  # ---------------------------------------------------------------- schema
+  migrate:
+    image: fraud-platform/core-api:${APP_VERSION:-dev}
+    build: { context: ., dockerfile: services/rust/Dockerfile, args: { SERVICE: core-api } }
+    command: ["migrate"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    environment:
+      DATABASE_URL: postgres://migrator:${MIGRATOR_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-fraud}
+      MIGRATIONS_DIR: /app/migrations
+      SERVICE_NAME: migrate
+      RUST_LOG: ${LOG_LEVEL:-info}
+    restart: "no"
+    networks: [backend]
+
+  # ---------------------------------------------------------------- Rust services
+  core-api:
+    <<: *service
+    image: fraud-platform/core-api:${APP_VERSION:-dev}
+    build: { context: ., dockerfile: services/rust/Dockerfile, args: { SERVICE: core-api } }
+    command: ["serve"]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgres://core_api:${CORE_API_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-fraud}
+      DATABASE_MAX_CONNECTIONS: ${CORE_API_DB_POOL:-20}
+      BIND_ADDR: 0.0.0.0:8080
+      SERVICE_NAME: core-api
+      JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-60}
+      REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-14}
+      PII_PEPPER: ${PII_PEPPER:?set PII_PEPPER}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@fraud.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?set ADMIN_PASSWORD}
+      SEED_DEMO: ${SEED_DEMO:-true}
+      DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
+      RULE_SERVICE_URL: http://rule-service:8081
+      GRAPH_SERVICE_URL: http://graph-service:8082
+      ML_SERVICE_URL: http://ml-service:8001
+      LLM_SERVICE_URL: http://llm-service:8002
+      INGEST_SERVICE_URL: http://ingest-service:8003
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD", "/app/service", "healthcheck", "http://127.0.0.1:8080/health/live"]
+      <<: *http-health
+    networks: [backend]
+
+  rule-service:
+    <<: *service
+    image: fraud-platform/rule-service:${APP_VERSION:-dev}
+    build: { context: ., dockerfile: services/rust/Dockerfile, args: { SERVICE: rule-service } }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgres://rule_service:${RULE_SERVICE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-fraud}
+      DATABASE_MAX_CONNECTIONS: ${RULE_SERVICE_DB_POOL:-20}
+      BIND_ADDR: 0.0.0.0:8081
+      SERVICE_NAME: rule-service
+      CORE_API_URL: http://core-api:8080
+      GRAPH_SERVICE_URL: http://graph-service:8082
+    healthcheck:
+      test: ["CMD", "/app/service", "healthcheck", "http://127.0.0.1:8081/health/live"]
+      <<: *http-health
+    networks: [backend]
+
+  graph-service:
+    <<: *service
+    image: fraud-platform/graph-service:${APP_VERSION:-dev}
+    build: { context: ., dockerfile: services/rust/Dockerfile, args: { SERVICE: graph-service } }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgres://graph_service:${GRAPH_SERVICE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-fraud}
+      DATABASE_MAX_CONNECTIONS: ${GRAPH_SERVICE_DB_POOL:-20}
+      BIND_ADDR: 0.0.0.0:8082
+      SERVICE_NAME: graph-service
+    healthcheck:
+      test: ["CMD", "/app/service", "healthcheck", "http://127.0.0.1:8082/health/live"]
+      <<: *http-health
+    networks: [backend]
+
+  # ---------------------------------------------------------------- Python services
+  ml-service:
+    <<: *service
+    image: fraud-platform/ml-service:${APP_VERSION:-dev}
+    build: { context: ./services/python/ml-service }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg://ml_service:${ML_SERVICE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-fraud}
+      GRAPH_SERVICE_URL: http://graph-service:8082
+      MODEL_DIR: /models
+      PLUGIN_DIR: /plugins
+      TRAINING_WORKERS: ${ML_TRAINING_WORKERS:-2}
+    volumes:
+      - ml_models:/models
+      - ./plugins:/plugins:ro          # drop external algorithm plugins here, then POST /api/v1/ml/algorithms/reload
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8001/health/live', timeout=3)"]
+      <<: *http-health
+    networks: [backend]
+
+  llm-service:
+    <<: *service
+    image: fraud-platform/llm-service:${APP_VERSION:-dev}
+    build: { context: ./services/python/llm-service }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      opensearch: { condition: service_healthy }
+      ollama: { condition: service_healthy }
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg://llm_service:${LLM_SERVICE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-fraud}
+      CORE_API_URL: http://core-api:8080
+      RULE_SERVICE_URL: http://rule-service:8081
+      GRAPH_SERVICE_URL: http://graph-service:8082
+      ML_SERVICE_URL: http://ml-service:8001
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}   # external GPU host, e.g. http://nvda11-gpu:11434
+      OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:7b-instruct}
+      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
+      OPENSEARCH_URL: http://opensearch:9200
+      REGULATION_DIR: /regulations
+    volumes:
+      - regulations:/regulations
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8002/health/live', timeout=3)"]
+      <<: *http-health
+    networks: [backend]
+
+  ingest-service:
+    <<: *service
+    image: fraud-platform/ingest-service:${APP_VERSION:-dev}
+    build: { context: ./services/python/ingest-service }
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    environment:
+      <<: *common-env
+      DATABASE_URL: postgresql+psycopg://ingest_service:${INGEST_SERVICE_DB_PASSWORD}@postgres:5432/${POSTGRES_DB:-fraud}
+      CORE_API_URL: http://core-api:8080
+      LLM_SERVICE_URL: http://llm-service:8002
+      UPLOAD_DIR: /uploads
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-200}
+      CONNECTOR_POLL_ENABLED: ${CONNECTOR_POLL_ENABLED:-true}
+    env_file:
+      - path: .env.sources          # optional: *_PASSWORD vars referenced by SQL data sources (password_env)
+        required: false
+    volumes:
+      - uploads:/uploads
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:8003/health/live', timeout=3)"]
+      <<: *http-health
+    networks: [backend]
+
+  # ---------------------------------------------------------------- edge
+  gateway:
+    <<: *service
+    image: traefik:v3.1
+    command:
+      - --configFile=/etc/traefik/traefik.yml
+    environment:
+      # Comma-separated CIDRs allowed to reach the UI and API. Keep 172.31.250.0/24 (web BFF → gateway) and
+      # 172.31.251.1/32 (access from the host itself arrives via the docker bridge gateway).
+      ALLOWED_SOURCE_RANGES: ${ALLOWED_SOURCE_RANGES:-10.100.21.0/24,192.168.1.0/24,172.31.250.0/24,172.31.251.1/32}
+    volumes:
+      - ./deploy/gateway:/etc/traefik:ro
+    ports:
+      - "${BIND_ADDRESS:-0.0.0.0}:${GATEWAY_HOST_PORT:-8080}:80"
+      - "${BIND_ADDRESS:-0.0.0.0}:${WEB_HOST_PORT:-3000}:3000"
+    depends_on:
+      core-api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
       interval: 10s
       timeout: 5s
-      retries: 3
+      retries: 10
+    networks: [backend, frontend]
 
-  fraud_ui:
-    image: python:3.12-slim
-    container_name: fraud_ui
-    working_dir: /app
-    volumes:
-      - ./streamlit_app:/app
-    ports:
-      - 8501:8501
+  web:
+    <<: *service
+    image: fraud-platform/web:${APP_VERSION:-dev}
+    build: { context: ./web }
     depends_on:
-      - fraud_engine
+      gateway: { condition: service_healthy }
     environment:
-      - BASE_URL=http://fraud_engine:8000/api/v1
-    command: >
-      bash -c "
-      pip install streamlit requests && ls -la &&
-      streamlit run /app/app_streamlit.py --server.port=8501 --server.address=0.0.0.0
-      "
+      NUXT_API_BASE_URL: http://gateway:80
+      NUXT_SESSION_SECRET: ${WEB_SESSION_SECRET:?set WEB_SESSION_SECRET}
+      NUXT_SESSION_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      PORT: 3000
+    # not published: reachable only through the gateway's `ui` entrypoint (IP allow-list applies)
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      <<: *http-health
+    networks: [frontend]
 
-  llm_chat_ui:
-    image: llm_module_base:0.1.0  # gunakan image hasil build llm_module
-    container_name: llm_chat_ui
-    ports:
-      - 8502:8502
-    env_file:
-      - .env
-    environment:
-      - PYTHONPATH=/app/llm_module
+  # ---------------------------------------------------------------- tools
+  simulator:
+    profiles: ["seed"]
+    build: { context: ./tools/simulator }
     depends_on:
-      - fraud_engine
-      - mongo
+      gateway: { condition: service_healthy }
+    environment:
+      GATEWAY_URL: http://gateway:80
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@fraud.local}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
+      SIM_TENANT: ${SIM_TENANT:-demo}
+      SIM_CUSTOMERS: ${SIM_CUSTOMERS:-2000}
+      SIM_DAYS: ${SIM_DAYS:-60}
+      SIM_SEED: ${SIM_SEED:-42}
+      SIM_RUN_TAG: ${SIM_RUN_TAG:-}
+      SIM_LOAD_ONLY_SHARE: ${SIM_LOAD_ONLY_SHARE:-0.7}
+    restart: "no"
+    networks: [frontend]
+
+networks:
+  backend:
+    internal: false     # set true in production if Ollama models are pre-pulled (no egress needed)
+    ipam:
+      config:
+        - subnet: 172.31.251.0/24   # fixed: its gateway 172.31.251.1 is how host-local clients appear at the gateway
+  frontend:
+    ipam:
+      config:
+        - subnet: 172.31.250.0/24   # fixed so it can be allow-listed at the gateway
+
+volumes:
+  pg_data: {}
+  os_data: {}
+  ollama_data: {}
+  ml_models: {}
+  regulations: {}
+  uploads: {}

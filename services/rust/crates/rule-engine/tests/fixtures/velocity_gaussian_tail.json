@@ -1,0 +1,24 @@
+{
+  "kind": "velocity",
+  "group_by": [
+    "customer_id"
+  ],
+  "window": {
+    "duration": "90d"
+  },
+  "aggregate": {
+    "fn": "avg",
+    "field": "amount"
+  },
+  "statistic": {
+    "fn": "gaussian_tail",
+    "tail": "upper"
+  },
+  "compare": {
+    "op": "lt",
+    "right": {
+      "type": "const",
+      "value": 0.01
+    }
+  }
+}

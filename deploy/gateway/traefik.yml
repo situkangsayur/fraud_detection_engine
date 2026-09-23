@@ -1,0 +1,43 @@
+# Traefik static configuration — file provider only (no docker socket mounted: least privilege).
+entryPoints:
+  web:                     # API (client systems, ingest webhooks, OpenAPI) — published as ${GATEWAY_HOST_PORT:-8080}
+    address: ":80"
+    transport:
+      respondingTimeouts:
+        readTimeout: 120s
+        writeTimeout: 300s     # LLM streaming + large file inspection
+  ui:                      # Web UI (Nuxt) — published as ${WEB_HOST_PORT:-3000}
+    address: ":3000"
+    transport:
+      respondingTimeouts:
+        readTimeout: 120s
+        writeTimeout: 300s
+
+ping:
+  entryPoint: web
+
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yml
+    watch: true
+
+log:
+  level: INFO
+  format: json
+
+accessLog:
+  format: json
+  fields:
+    headers:
+      defaultMode: drop
+      names:
+        X-Request-Id: keep
+        User-Agent: keep
+
+metrics:
+  prometheus:
+    entryPoint: web
+    addRoutersLabels: true
+
+api:
+  dashboard: false

@@ -1,0 +1,68 @@
+{
+  "kind": "simple",
+  "scoring": "weighted",
+  "when": {
+    "at_least": {
+      "n": 2,
+      "of": [
+        {
+          "left": {
+            "type": "formula",
+            "expr": "F(x,y,z) = 2x + 2^y / z^2",
+            "args": {
+              "x": {
+                "type": "field",
+                "path": "features.cust_cnt_24h"
+              },
+              "y": {
+                "type": "const",
+                "value": 3
+              },
+              "z": {
+                "type": "field",
+                "path": "customer.kyc_level"
+              }
+            }
+          },
+          "op": "gt",
+          "right": {
+            "type": "const",
+            "value": 20
+          },
+          "weight": 2
+        },
+        {
+          "left": {
+            "type": "field",
+            "path": "event.device_id"
+          },
+          "op": "similar",
+          "right": {
+            "type": "field",
+            "path": "source.previous_device"
+          },
+          "options": {
+            "threshold": 0.9,
+            "method": "levenshtein_ratio"
+          }
+        },
+        {
+          "not": {
+            "left": {
+              "type": "field",
+              "path": "event.geo_country"
+            },
+            "op": "in",
+            "right": {
+              "type": "const",
+              "value": [
+                "ID",
+                "SG"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  }
+}

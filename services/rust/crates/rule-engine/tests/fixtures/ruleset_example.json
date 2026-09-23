@@ -1,0 +1,19 @@
+{
+  "code": "RS-CARDING",
+  "name": "Carding",
+  "event_types": [
+    "transaction"
+  ],
+  "typologies": [
+    "carding"
+  ],
+  "aggregation": "probabilistic_or",
+  "max_score": 100,
+  "rules": [
+    {
+      "rule_id": "\u2026",
+      "weight": 1.0,
+      "pinned_version": null
+    }
+  ]
+}

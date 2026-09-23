@@ -1,0 +1,676 @@
+{
+  "stage": "pre_payment",
+  "description": "Checkout protection before payment authorisation: carding, ATO at checkout, blocklists, network risk.",
+  "reference_lists": [
+    {
+      "name": "card_blacklist",
+      "description": "Card fingerprints with confirmed fraud / chargebacks",
+      "list_type": "blacklist",
+      "key_kind": "card_fingerprint",
+      "columns": [],
+      "entries": []
+    },
+    {
+      "name": "device_blacklist",
+      "description": "Devices used in confirmed fraud",
+      "list_type": "blacklist",
+      "key_kind": "device_id",
+      "columns": [],
+      "entries": []
+    },
+    {
+      "name": "vip_whitelist",
+      "description": "Verified VIP customers (external ids) — force approve",
+      "list_type": "whitelist",
+      "key_kind": "customer_external_id",
+      "columns": [],
+      "entries": []
+    },
+    {
+      "name": "merchant_limits",
+      "description": "Maximum single-transaction amount per merchant",
+      "list_type": "lookup",
+      "key_kind": "merchant_id",
+      "columns": [
+        {
+          "name": "max_amount",
+          "type": "number"
+        }
+      ],
+      "entries": [
+        {
+          "key": "M-DEMO-001",
+          "attributes": {
+            "max_amount": 50000000
+          },
+          "reason": "demo limit"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "code": "RL-PRE-BL-CARD",
+      "name": "Blacklisted card",
+      "description": "Card fingerprint is on the card blacklist",
+      "kind": "reference",
+      "typologies": [
+        "carding"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 100,
+      "trapped_score": 0,
+      "action": "force_decline",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "card_blacklist",
+        "key": {
+          "type": "field",
+          "path": "event.instrument_fingerprint"
+        },
+        "mode": "exists"
+      }
+    },
+    {
+      "code": "RL-PRE-BL-DEVICE",
+      "name": "Blacklisted device",
+      "description": "Device is on the device blacklist",
+      "kind": "reference",
+      "typologies": [
+        "carding",
+        "account_takeover"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 100,
+      "trapped_score": 0,
+      "action": "force_decline",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "device_blacklist",
+        "key": {
+          "type": "field",
+          "path": "event.device_id"
+        },
+        "mode": "exists"
+      }
+    },
+    {
+      "code": "RL-PRE-VIP",
+      "name": "VIP whitelist",
+      "description": "Verified VIP customer — approve unless a decline rule fires",
+      "kind": "reference",
+      "typologies": [
+        "other"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 0,
+      "trapped_score": 0,
+      "action": "force_approve",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "vip_whitelist",
+        "key": {
+          "type": "field",
+          "path": "customer.external_id"
+        },
+        "mode": "exists"
+      }
+    },
+    {
+      "code": "RL-PRE-MERCHANT-LIMIT",
+      "name": "Above merchant limit",
+      "description": "Amount exceeds the merchant's max_amount",
+      "kind": "reference",
+      "typologies": [
+        "other"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 40,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "merchant_limits",
+        "key": {
+          "type": "field",
+          "path": "event.merchant_id"
+        },
+        "mode": "attribute",
+        "attribute_condition": {
+          "left": {
+            "type": "field",
+            "path": "event.amount"
+          },
+          "op": "gt",
+          "right": {
+            "type": "ref",
+            "path": "max_amount"
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PRE-CARD-SHARED",
+      "name": "Card shared by many customers",
+      "description": "Same card used by >= 3 distinct customers in 30 days",
+      "kind": "velocity",
+      "typologies": [
+        "carding"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 45,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "velocity",
+        "group_by": [
+          "instrument_fingerprint"
+        ],
+        "window": {
+          "duration": "30d"
+        },
+        "aggregate": {
+          "fn": "distinct_count",
+          "field": "customer_id"
+        },
+        "include_current": true,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 3
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PRE-CARD-TESTING",
+      "name": "Card testing on device",
+      "description": ">= 4 distinct cards from one device within 1 hour",
+      "kind": "velocity",
+      "typologies": [
+        "carding"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 50,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "velocity",
+        "group_by": [
+          "device_id"
+        ],
+        "window": {
+          "duration": "1h"
+        },
+        "aggregate": {
+          "fn": "distinct_count",
+          "field": "instrument_fingerprint"
+        },
+        "include_current": true,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 4
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PRE-BIN-MISMATCH",
+      "name": "BIN country mismatch on high amount",
+      "description": "Issuer country differs from client country and amount > 2 jt",
+      "kind": "simple",
+      "typologies": [
+        "carding"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 30,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "field",
+                "path": "features.bin_country_mismatch"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": 1
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "event.amount"
+              },
+              "op": "gt",
+              "right": {
+                "type": "const",
+                "value": 2000000
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-PRE-AMOUNT-ZSCORE",
+      "name": "Unusual amount for customer",
+      "description": "Amount z-score vs the customer's 30-day history > 3",
+      "kind": "velocity",
+      "typologies": [
+        "account_takeover"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 35,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "velocity",
+        "group_by": [
+          "customer_id"
+        ],
+        "window": {
+          "duration": "30d"
+        },
+        "aggregate": {
+          "fn": "avg",
+          "field": "amount"
+        },
+        "statistic": {
+          "fn": "zscore"
+        },
+        "min_samples": 5,
+        "compare": {
+          "op": "gt",
+          "right": {
+            "type": "const",
+            "value": 3
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PRE-ATO-CHECKOUT",
+      "name": "ATO signals at checkout",
+      "description": "At least 2 of: new device, credential change 24h, shipping≠billing, unusual country (weighted)",
+      "kind": "simple",
+      "typologies": [
+        "account_takeover"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 60,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "at_least": {
+            "n": 2,
+            "of": [
+              {
+                "left": {
+                  "type": "field",
+                  "path": "features.is_new_device"
+                },
+                "op": "eq",
+                "right": {
+                  "type": "const",
+                  "value": 1
+                }
+              },
+              {
+                "left": {
+                  "type": "field",
+                  "path": "features.recent_credential_change_24h"
+                },
+                "op": "eq",
+                "right": {
+                  "type": "const",
+                  "value": 1
+                },
+                "weight": 2
+              },
+              {
+                "left": {
+                  "type": "field",
+                  "path": "features.shipping_billing_mismatch"
+                },
+                "op": "eq",
+                "right": {
+                  "type": "const",
+                  "value": 1
+                }
+              },
+              {
+                "left": {
+                  "type": "field",
+                  "path": "features.geo_country_mismatch"
+                },
+                "op": "eq",
+                "right": {
+                  "type": "const",
+                  "value": 1
+                }
+              }
+            ]
+          }
+        },
+        "scoring": "weighted"
+      }
+    },
+    {
+      "code": "RL-PRE-SPEND-SPIKE",
+      "name": "24h spend spike (formula)",
+      "description": "F(s,a) = s / (a + 1): 24h spend vs 30-day average ticket > 10",
+      "kind": "simple",
+      "typologies": [
+        "account_takeover",
+        "carding"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 25,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "left": {
+            "type": "formula",
+            "expr": "F(s,a) = s / (a + 1)",
+            "args": {
+              "s": {
+                "type": "field",
+                "path": "features.cust_txn_sum_24h"
+              },
+              "a": {
+                "type": "field",
+                "path": "features.cust_txn_avg_30d"
+              }
+            }
+          },
+          "op": "gt",
+          "right": {
+            "type": "const",
+            "value": 10
+          }
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-PRE-GRAPH-NEAR-FRAUD",
+      "name": "Close to a fraudster",
+      "description": "Within 2 hops of a confirmed fraud customer",
+      "kind": "graph",
+      "typologies": [
+        "carding",
+        "account_takeover",
+        "money_mule"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 50,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "graph",
+        "metric": "distance_to_fraud",
+        "include_similar": true,
+        "max_depth": 3,
+        "compare": {
+          "op": "lte",
+          "right": {
+            "type": "const",
+            "value": 2
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PRE-ML-HIGH",
+      "name": "Very high model probability",
+      "description": "Supervised model probability >= 0.9 — manual review",
+      "kind": "simple",
+      "typologies": [
+        "other"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 0,
+      "trapped_score": 0,
+      "action": "force_review",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "left": {
+            "type": "field",
+            "path": "ml.fraud_probability"
+          },
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 0.9
+          }
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-PRE-NIGHT-HIGH",
+      "name": "Night-time high value",
+      "description": "Between 00:00-05:59 and amount > 10 jt",
+      "kind": "simple",
+      "typologies": [
+        "account_takeover"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 20,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "field",
+                "path": "features.is_night"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": 1
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "event.amount"
+              },
+              "op": "gt",
+              "right": {
+                "type": "const",
+                "value": 10000000
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    }
+  ],
+  "rulesets": [
+    {
+      "code": "RS-PRE-BLOCKLISTS",
+      "name": "Blocklists & whitelists",
+      "description": "Hard blocks and VIP overrides",
+      "event_types": [
+        "transaction"
+      ],
+      "typologies": [
+        "carding",
+        "account_takeover"
+      ],
+      "aggregation": "max",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-PRE-BL-CARD",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-BL-DEVICE",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-VIP",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-MERCHANT-LIMIT",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "code": "RS-PRE-CARDING",
+      "name": "Carding",
+      "description": "Card testing and shared/stolen cards",
+      "event_types": [
+        "transaction"
+      ],
+      "typologies": [
+        "carding"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-PRE-CARD-SHARED",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-CARD-TESTING",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-BIN-MISMATCH",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "code": "RS-PRE-ATO",
+      "name": "Account takeover at checkout",
+      "description": "Behavioural change of the account owner",
+      "event_types": [
+        "transaction"
+      ],
+      "typologies": [
+        "account_takeover"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-PRE-AMOUNT-ZSCORE",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-ATO-CHECKOUT",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-SPEND-SPIKE",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-NIGHT-HIGH",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "code": "RS-PRE-NETWORK",
+      "name": "Network & model",
+      "description": "Graph proximity and model guardrails",
+      "event_types": [
+        "transaction"
+      ],
+      "typologies": [
+        "money_mule",
+        "other"
+      ],
+      "aggregation": "max",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-PRE-GRAPH-NEAR-FRAUD",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PRE-ML-HIGH",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

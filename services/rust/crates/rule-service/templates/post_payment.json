@@ -1,0 +1,387 @@
+{
+  "stage": "post_payment",
+  "description": "After payment, before fulfilment/shipment and payouts: shipping anomalies, amount anomalies, mule payouts.",
+  "reference_lists": [
+    {
+      "name": "mule_accounts",
+      "description": "Beneficiary account fingerprints linked to mule activity",
+      "list_type": "blacklist",
+      "key_kind": "recipient_fingerprint",
+      "columns": [],
+      "entries": []
+    },
+    {
+      "name": "merchant_limits",
+      "description": "Maximum single-transaction amount per merchant",
+      "list_type": "lookup",
+      "key_kind": "merchant_id",
+      "columns": [
+        {
+          "name": "max_amount",
+          "type": "number"
+        }
+      ],
+      "entries": [
+        {
+          "key": "M-DEMO-001",
+          "attributes": {
+            "max_amount": 50000000
+          },
+          "reason": "demo limit"
+        }
+      ]
+    }
+  ],
+  "rules": [
+    {
+      "code": "RL-POST-SHIP-MISMATCH",
+      "name": "Shipping differs from billing on large order",
+      "description": "shipping≠billing and amount > 5 jt",
+      "kind": "simple",
+      "typologies": [
+        "carding",
+        "account_takeover"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 30,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "field",
+                "path": "features.shipping_billing_mismatch"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": 1
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "event.amount"
+              },
+              "op": "gt",
+              "right": {
+                "type": "const",
+                "value": 5000000
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-POST-AMOUNT-GAUSS",
+      "name": "Amount in the far tail",
+      "description": "P(X >= amount) < 1% under the customer's 60-day gaussian",
+      "kind": "velocity",
+      "typologies": [
+        "account_takeover"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 35,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "velocity",
+        "group_by": [
+          "customer_id"
+        ],
+        "window": {
+          "duration": "60d"
+        },
+        "aggregate": {
+          "fn": "avg",
+          "field": "amount"
+        },
+        "statistic": {
+          "fn": "gaussian_tail",
+          "tail": "upper"
+        },
+        "min_samples": 5,
+        "compare": {
+          "op": "lt",
+          "right": {
+            "type": "const",
+            "value": 0.01
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-POST-MERCHANT-TREND",
+      "name": "Merchant volume break-out",
+      "description": "Daily merchant volume residual z > 3 vs its 14-day linear trend",
+      "kind": "velocity",
+      "typologies": [
+        "system_breach",
+        "other"
+      ],
+      "event_types": [
+        "transaction"
+      ],
+      "risk_score": 25,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "velocity",
+        "group_by": [
+          "merchant_id"
+        ],
+        "window": {
+          "duration": "14d"
+        },
+        "aggregate": {
+          "fn": "sum",
+          "field": "amount"
+        },
+        "statistic": {
+          "fn": "linear_trend",
+          "bucket": "1d",
+          "output": "residual_z"
+        },
+        "compare": {
+          "op": "gt",
+          "right": {
+            "type": "const",
+            "value": 3
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-POST-MULE-PAYOUT",
+      "name": "Payout to mule account",
+      "description": "Beneficiary is on the mule list",
+      "kind": "reference",
+      "typologies": [
+        "money_mule"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 100,
+      "trapped_score": 0,
+      "action": "force_decline",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "mule_accounts",
+        "key": {
+          "type": "field",
+          "path": "event.recipient_fingerprint"
+        },
+        "mode": "exists"
+      }
+    },
+    {
+      "code": "RL-POST-DRAIN",
+      "name": "Drain to new beneficiary",
+      "description": "New beneficiary + credential change 24h + amount > 5 jt",
+      "kind": "simple",
+      "typologies": [
+        "bank_account_takeover"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 70,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "field",
+                "path": "features.is_new_recipient"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": 1
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "features.recent_credential_change_24h"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": 1
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "event.amount"
+              },
+              "op": "gt",
+              "right": {
+                "type": "const",
+                "value": 5000000
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-POST-RECIPIENT-FANIN",
+      "name": "Beneficiary fan-in",
+      "description": ">= 5 distinct customers paid the same beneficiary in 7 days",
+      "kind": "velocity",
+      "typologies": [
+        "money_mule"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 55,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "velocity",
+        "history_event_types": [
+          "payout"
+        ],
+        "group_by": [
+          "recipient_fingerprint"
+        ],
+        "window": {
+          "duration": "7d"
+        },
+        "aggregate": {
+          "fn": "distinct_count",
+          "field": "customer_id"
+        },
+        "include_current": true,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 5
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-POST-GRAPH-FRAUD-NEIGHBORS",
+      "name": "Fraud neighbourhood",
+      "description": ">= 2 fraud customers within 2 hops",
+      "kind": "graph",
+      "typologies": [
+        "money_mule"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 45,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "graph",
+        "metric": "fraud_neighbors",
+        "include_similar": true,
+        "max_depth": 2,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 2
+          }
+        }
+      }
+    }
+  ],
+  "rulesets": [
+    {
+      "code": "RS-POST-FULFILMENT",
+      "name": "Fulfilment checks",
+      "description": "Before shipping the goods",
+      "event_types": [
+        "transaction"
+      ],
+      "typologies": [
+        "carding",
+        "account_takeover"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-POST-SHIP-MISMATCH",
+          "weight": 1
+        },
+        {
+          "rule": "RL-POST-AMOUNT-GAUSS",
+          "weight": 1
+        },
+        {
+          "rule": "RL-POST-MERCHANT-TREND",
+          "weight": 0.5
+        }
+      ]
+    },
+    {
+      "code": "RS-POST-PAYOUT",
+      "name": "Payout checks",
+      "description": "Before releasing funds",
+      "event_types": [
+        "payout"
+      ],
+      "typologies": [
+        "money_mule",
+        "bank_account_takeover"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-POST-MULE-PAYOUT",
+          "weight": 1
+        },
+        {
+          "rule": "RL-POST-DRAIN",
+          "weight": 1
+        },
+        {
+          "rule": "RL-POST-RECIPIENT-FANIN",
+          "weight": 1
+        },
+        {
+          "rule": "RL-POST-GRAPH-FRAUD-NEIGHBORS",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}
