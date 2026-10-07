@@ -70,11 +70,18 @@ main() {
   simulate online "$end" "$seed" || { log "online seed failed, retrying"; sleep 30; simulate online "$end" "$seed"; }
   log "online seeded"
 
-  python3 deploy/demo/activity.py || log "activity simulation had errors (continuing)"
+  # ground truth of this run (pure function of seed + window end): analysts resolve cases against it, and the
+  # research export uses it as the evaluation reference
+  local truth="$state_dir/truth.jsonl"
+  uv run --directory tools/simulator python -m simulator stats --end "$end" --seed "$seed" \
+    --customers "${SIM_CUSTOMERS:-2000}" --days "${SIM_DAYS:-60}" --truth-out "$truth" >/dev/null
+
+  DEMO_TRUTH_FILE="$truth" python3 deploy/demo/activity.py || log "activity simulation had errors (continuing)"
   log "activity simulated"
 
   uv run --directory tools/research_export python -m research_export --out "$dataset_dir/$(date +%F)" \
-    --sim-end "$end" --sim-seed "$seed" || log "research export failed"
+    --truth "$truth" || log "research export failed"
+  cp "$truth" "$dataset_dir/$(date +%F)/ground_truth.jsonl" 2>/dev/null || true
   log "done"
 }
 

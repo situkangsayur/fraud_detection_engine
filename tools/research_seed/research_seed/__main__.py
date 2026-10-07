@@ -118,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"[research-seed] wrote {out / 'ground_truth.jsonl'}", flush=True)
         return 0
 
-    env = _env(tenant)
+    env = {**_env(tenant), "DEMO_TRUTH_FILE": str(truth)}  # analysts "investigate" cases against it
     s = Settings(
         gateway_url=os.environ.get("GATEWAY_URL", "http://localhost:8080"),
         admin_email=os.environ.get("ADMIN_EMAIL", "admin@fraud.local"),

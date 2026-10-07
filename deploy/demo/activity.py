@@ -16,15 +16,35 @@ Stdlib only; run after post_seed.py: python3 deploy/demo/activity.py
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
+import zlib
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from post_seed import ANALYST, APPROVER, call, log, login  # noqa: E402
 
 MAX_CASES = int(os.environ.get("DEMO_ACTIVITY_MAX_CASES", "40"))
+TYPOLOGIES = {"carding", "account_takeover", "bank_account_takeover", "system_breach", "promo_abuse", "refund_abuse",
+              "money_mule", "other"}
+
+
+def load_truth() -> dict[tuple[str, str], str | None]:
+    """Optional investigation outcome per (project slug, external_id) from a ground-truth JSONL (DEMO_TRUTH_FILE)."""
+    path = os.environ.get("DEMO_TRUTH_FILE")
+    if not path or not Path(path).exists():
+        return {}
+    out: dict[tuple[str, str], str | None] = {}
+    with open(path) as f:
+        for line in f:
+            r = json.loads(line)
+            out[(r["project"], r["external_id"])] = r.get("platform_typology") or r.get("fraud_type")
+    return out
+
+
+TRUTH = load_truth()
 LLM_WAIT_S = int(os.environ.get("DEMO_ACTIVITY_LLM_WAIT_S", "1500"))
 
 
@@ -35,6 +55,8 @@ def items(page: object) -> list[dict]:
 
 
 def work_cases(analyst: str, me_id: str, pid: str, slug: str) -> None:
+    """Known outcomes (label feed) are resolved. With a truth file the analyst also "investigates": ~70 % of the
+    remaining cases get the true outcome, the rest stays in review as a realistic backlog."""
     labels = items(call("GET", f"/projects/{pid}/labels?page_size=5000", analyst))
     known = {lab["subject_id"]: lab for lab in labels if lab.get("subject_type") == "event"}
     cases = items(call("GET", f"/projects/{pid}/cases?status=open&page_size={MAX_CASES}", analyst))
@@ -42,11 +64,18 @@ def work_cases(analyst: str, me_id: str, pid: str, slug: str) -> None:
     for case in cases:
         cid, eid = case["id"], case.get("event_id")
         lab = known.get(eid) if eid else None
-        if lab:
-            body = {"label": lab["label"], "notes": "Reviewed: outcome confirmed by the label feed.",
-                    "apply_to_customer": lab["label"] == "fraud"}
-            if lab.get("fraud_type"):
-                body["fraud_type"] = lab["fraud_type"]
+        outcome: tuple[str, str | None] | None = (lab["label"], lab.get("fraud_type")) if lab else None
+        if outcome is None and TRUTH and eid and zlib.crc32(cid.encode()) % 10 < 7:
+            ext = call("GET", f"/projects/{pid}/events/{eid}", analyst).get("event", {}).get("external_id")
+            if (slug, ext) in TRUTH:
+                t = TRUTH[(slug, ext)]
+                outcome = ("fraud", t if t in TYPOLOGIES else "other") if t else ("legit", None)
+        if outcome:
+            label, ftype = outcome
+            body: dict = {"label": label, "apply_to_customer": label == "fraud",
+                          "notes": "Investigated: device, payment history and linked accounts reviewed."}
+            if ftype:
+                body["fraud_type"] = ftype
             call("POST", f"/projects/{pid}/cases/{cid}/resolve", analyst, body=body)
             resolved += 1
         else:
@@ -83,20 +112,14 @@ def blacklist_devices(analyst: str, pid: str, slug: str) -> None:
 
 
 def llm_reports(analyst: str, approver: str, pid: str, slug: str) -> None:
-    started = {}
+    # one report at a time: on a CPU-only host two concurrent generations both run into the request timeout
     for kind in ("fraud-situation", "recommend-rules"):
-        started[kind] = call("POST", f"/projects/{pid}/llm/analysis/{kind}", analyst, body={})["report_id"]
-    deadline = time.time() + LLM_WAIT_S
-    pending = dict(started)
-    while pending and time.time() < deadline:
-        time.sleep(20)
-        for kind, rid in list(pending.items()):
-            status = call("GET", f"/projects/{pid}/llm/reports/{rid}", analyst).get("status")
-            if status not in ("pending", "running", "queued", "processing"):
-                log(f"{slug}: LLM report {kind} → {status}")
-                del pending[kind]
-    if pending:
-        log(f"{slug}: LLM reports still running after {LLM_WAIT_S}s: {list(pending)}")
+        rid = call("POST", f"/projects/{pid}/llm/analysis/{kind}", analyst, body={})["report_id"]
+        deadline, status = time.time() + LLM_WAIT_S, "running"
+        while status in ("pending", "running", "queued", "processing") and time.time() < deadline:
+            time.sleep(20)
+            status = call("GET", f"/projects/{pid}/llm/reports/{rid}", analyst).get("status", "?")
+        log(f"{slug}: LLM report {kind} → {status}")
     proposals = items(call("GET", f"/projects/{pid}/proposals?status=pending", approver))
     valid = [p for p in proposals if (p.get("validation") or {}).get("valid", True)]
     if valid:

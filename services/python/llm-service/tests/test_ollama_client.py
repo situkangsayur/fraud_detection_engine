@@ -59,3 +59,16 @@ async def test_stream_sends_think_flag_when_configured() -> None:
 def test_ollama_think_env_parsing(monkeypatch: pytest.MonkeyPatch, raw: str, expected: bool | None) -> None:
     monkeypatch.setenv("OLLAMA_THINK", raw)
     assert Settings().ollama_think is expected
+
+
+@respx.mock
+async def test_qwen3_gets_no_think_switch_when_thinking_is_off() -> None:
+    route = respx.post(f"{BASE}/api/chat").mock(
+        return_value=httpx.Response(200, json={"message": {"role": "assistant", "content": "ok"}})
+    )
+    msgs = [{"role": "system", "content": "s"}, {"role": "user", "content": "q"}]
+    await _client(ollama_think=False, ollama_chat_model="qwen3:8b").chat(msgs)
+    sent = json.loads(route.calls.last.request.content)["messages"]
+    assert sent[-1]["content"].endswith("/no_think") and msgs[-1]["content"] == "q"  # caller's list untouched
+    await _client(ollama_think=False, ollama_chat_model="qwen2.5:7b").chat(msgs)
+    assert "/no_think" not in json.loads(route.calls.last.request.content)["messages"][-1]["content"]

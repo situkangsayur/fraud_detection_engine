@@ -30,6 +30,19 @@ def strip_thinking(text: str) -> str:
     return _THINK_BLOCK.sub("", text) if _THINK_OPEN in text else text
 
 
+def _no_think(messages: list[Message]) -> list[Message]:
+    """qwen3's soft switch: `/no_think` in the latest user turn skips the reasoning phase. Older Ollama versions ignore
+    the `think` request field, and on CPU the reasoning tokens alone can exceed the request timeout."""
+    out = list(messages)
+    for i in range(len(out) - 1, -1, -1):
+        if out[i].get("role") == "user":
+            content = str(out[i].get("content", ""))
+            if "/no_think" not in content:
+                out[i] = {**out[i], "content": f"{content}\n/no_think"}
+            break
+    return out
+
+
 class _ThinkFilter:
     """Streaming counterpart of :func:`strip_thinking`; tags may be split across chunks."""
 
@@ -87,8 +100,11 @@ class OllamaClient:
         return {"temperature": temperature, "num_ctx": self._settings.ollama_num_ctx}
 
     def _body(self, messages: list[Message], model: str | None, temperature: float, *, stream: bool) -> dict[str, Any]:
+        name = model or self.chat_model
+        if self._settings.ollama_think is False and "qwen3" in name:
+            messages = _no_think(messages)
         body: dict[str, Any] = {
-            "model": model or self.chat_model,
+            "model": name,
             "messages": messages,
             "stream": stream,
             "options": self._options(temperature),
