@@ -27,4 +27,4 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 # pandas-stubs types every itertuples() field as a broad scalar union; the loaders read typed CSV columns.
 module = "research_seed.loaders"
-disable_error_code = ["union-attr", "arg-type"]
+disable_error_code = ["union-attr", "arg-type", "index", "call-overload"]

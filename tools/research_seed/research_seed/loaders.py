@@ -17,7 +17,7 @@ from __future__ import annotations
 import hashlib
 import zipfile
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -37,7 +37,7 @@ class Source:
     url: str
     file: str  # path inside ~/datasets/fraud-public/<name>/
     license: str
-    loader: Callable[[Path, int, int, datetime], Dataset]
+    loader: Callable[[Path, int, int, datetime], ResearchDataset]
 
 
 def _record(
@@ -100,9 +100,17 @@ def _shift(ts: pd.Series, end: datetime) -> pd.Series:
     return ts + (pd.Timestamp(end) - ts.max())
 
 
-def _dataset(spec: ProjectSpec, events: list[SimEvent]) -> Dataset:
+@dataclass
+class ResearchDataset(Dataset):
+    """`events[].fraud_type` is the platform typology sent as label (carding, money_mule, …); `truth_detail` keeps the
+    dataset's own fine-grained label per external_id for evaluation only — it is never sent to the platform."""
+
+    truth_detail: dict[str, str] = field(default_factory=dict)
+
+
+def _dataset(spec: ProjectSpec, events: list[SimEvent], detail: dict[str, str]) -> ResearchDataset:
     events.sort(key=lambda e: e.ts)
-    return Dataset(project=spec, events=events, customers=[], fraud_customers={})
+    return ResearchDataset(project=spec, events=events, customers=[], fraud_customers={}, truth_detail=detail)
 
 
 # --------------------------------------------------------------------------------------------- Sparkov
@@ -117,7 +125,7 @@ SPARKOV = ProjectSpec(
 )
 
 
-def load_sparkov(folder: Path, target: int, seed: int, end: datetime) -> Dataset:
+def load_sparkov(folder: Path, target: int, seed: int, end: datetime) -> ResearchDataset:
     with zipfile.ZipFile(folder / "credit_card_fraud_transactions.zip") as z:
         name = next(n for n in z.namelist() if n.endswith(".csv"))
         df = pd.read_csv(z.open(name), dtype={"cc_num": str, "zip": str})
@@ -137,7 +145,8 @@ def load_sparkov(folder: Path, target: int, seed: int, end: datetime) -> Dataset
     df = df.sort_values("ts")
     df = df.iloc[-target:] if len(df) > target else df
     df["ts"] = _shift(df["ts"], end)
-    events = []
+    events: list[SimEvent] = []
+    detail: dict[str, str] = {}
     for r in df.itertuples(index=False):
         cust = {
             "id": f"SPK-C{r.card_key}",
@@ -155,7 +164,7 @@ def load_sparkov(folder: Path, target: int, seed: int, end: datetime) -> Dataset
             kanal="other" if str(r.category).endswith("_pos") else "web",  # card-present
             merchant=(str(r.merchant), str(r.category)),
             method="card",
-            card=f"4{r.card_key[1:]}",  # Visa-like 16 digits so pan_bin/pan_last4/hash_pan behave as for real PANs
+            card="4" + str(r.card_key)[1:],  # Visa-like 16 digits so pan_bin/pan_last4/hash_pan behave as for real PANs
             issuer_country="US",
             country="US",
             city=str(r.city),
@@ -170,8 +179,10 @@ def load_sparkov(folder: Path, target: int, seed: int, end: datetime) -> Dataset
                 "dob": r.dob,
             },
         )
-        events.append(SimEvent(r.ts.to_pydatetime(), rec, cust["id"], "card_fraud" if r.is_fraud else None))
-    return _dataset(SPARKOV, events)
+        if r.is_fraud:
+            detail[rec["no_ref"]] = "card_fraud"
+        events.append(SimEvent(r.ts.to_pydatetime(), rec, cust["id"], "carding" if r.is_fraud else None))
+    return _dataset(SPARKOV, events, detail)
 
 
 # --------------------------------------------------------------------------------------------- PaySim
@@ -193,7 +204,7 @@ PAYSIM_JENIS = {
 }
 
 
-def load_paysim(folder: Path, target: int, seed: int, end: datetime) -> Dataset:
+def load_paysim(folder: Path, target: int, seed: int, end: datetime) -> ResearchDataset:
     df = pd.read_csv(folder / "paysim.csv")
     fraud = df[df["isFraud"] == 1]
     n_fraud = min(len(fraud), max(1, int(target * 0.02)))  # ~2 % fraud rate in the sample
@@ -207,7 +218,8 @@ def load_paysim(folder: Path, target: int, seed: int, end: datetime) -> Dataset:
         for s, x in zip(df["step"], rng.integers(0, 3600, len(df)), strict=True)
     ]
     df["ts"] = _shift(df["ts"], end)
-    events = []
+    events: list[SimEvent] = []
+    detail: dict[str, str] = {}
     for i, r in enumerate(df.itertuples(index=False)):
         cust = {"id": f"PSM-{r.nameOrig}", "nama": None, "email": None, "no_hp": None}
         merchant = (str(r.nameDest), "mobile_money") if str(r.nameDest).startswith("M") else (None, None)
@@ -230,9 +242,10 @@ def load_paysim(folder: Path, target: int, seed: int, end: datetime) -> Dataset:
                 "newbalance_dest": float(r.newbalanceDest),
             },
         )
-        typ = f"ato_{str(r.type).lower()}" if r.isFraud else None
-        events.append(SimEvent(r.ts.to_pydatetime(), rec, cust["id"], typ))
-    return _dataset(PAYSIM, events)
+        if r.isFraud:
+            detail[rec["no_ref"]] = f"ato_{str(r.type).lower()}"
+        events.append(SimEvent(r.ts.to_pydatetime(), rec, cust["id"], "bank_account_takeover" if r.isFraud else None))
+    return _dataset(PAYSIM, events, detail)
 
 
 # --------------------------------------------------------------------------------------------- SAML-D
@@ -264,7 +277,7 @@ SAMLD_CURRENCY = {
 }
 
 
-def load_samld(folder: Path, target: int, seed: int, end: datetime) -> Dataset:
+def load_samld(folder: Path, target: int, seed: int, end: datetime) -> ResearchDataset:
     with zipfile.ZipFile(folder / "SAML-D.zip") as z:
         name = next(n for n in z.namelist() if n.lower().endswith(".csv") and not n.startswith("__MACOSX"))
         df = pd.read_csv(z.open(name))
@@ -289,7 +302,8 @@ def load_samld(folder: Path, target: int, seed: int, end: datetime) -> Dataset:
         rows += int(per_sender[acc])
     df = df[df["Sender_account"].isin(set(chosen))].copy()
     df["ts"] = _shift(df["ts"], end)
-    events = []
+    events: list[SimEvent] = []
+    detail: dict[str, str] = {}
     for i, r in enumerate(df.itertuples(index=False)):
         cust = {"id": f"AML-{r.Sender_account}", "nama": None, "email": None, "no_hp": None}
         rec = _record(
@@ -311,9 +325,10 @@ def load_samld(folder: Path, target: int, seed: int, end: datetime) -> Dataset:
                 "payment_type": r.Payment_type,
             },
         )
-        typ = str(r.Laundering_type) if r.Is_laundering == 1 else None
-        events.append(SimEvent(r.ts.to_pydatetime(), rec, cust["id"], typ))
-    return _dataset(SAMLD, events)
+        if r.Is_laundering == 1:
+            detail[rec["no_ref"]] = str(r.Laundering_type)
+        events.append(SimEvent(r.ts.to_pydatetime(), rec, cust["id"], "money_mule" if r.Is_laundering == 1 else None))
+    return _dataset(SAMLD, events, detail)
 
 
 SOURCES: dict[str, Source] = {

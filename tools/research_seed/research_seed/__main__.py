@@ -75,7 +75,11 @@ def main(argv: list[str] | None = None) -> int:
     tenant = a.tenant or f"exp-{a.dataset}"
     end = datetime.now(UTC).replace(microsecond=0)
     ds = src.loader(a.data_dir / src.name, a.target, a.seed, end)
-    print(f"[research-seed] {a.dataset}: {len(ds.events)} events, fraud {dict(ds.typology_counts())}", flush=True)
+    print(
+        f"[research-seed] {a.dataset}: {len(ds.events)} events, fraud {len(ds.truth_detail)} "
+        f"({len(set(ds.truth_detail.values()))} dataset typologies)",
+        flush=True,
+    )
 
     env = _env(tenant)
     s = Settings(
@@ -104,10 +108,15 @@ def main(argv: list[str] | None = None) -> int:
     truth = out / "ground_truth.jsonl"
     with truth.open("w") as f:
         for e in ds.events:
-            f.write(
-                json.dumps({"project": ds.project.slug, "external_id": e.record["no_ref"], "fraud_type": e.fraud_type})
-                + "\n"
-            )
+            ext = e.record["no_ref"]
+            # fraud_type = the dataset's own fine-grained label (evaluation only); platform_typology = what was sent
+            row = {
+                "project": ds.project.slug,
+                "external_id": ext,
+                "fraud_type": ds.truth_detail.get(ext),
+                "platform_typology": e.fraud_type,
+            }
+            f.write(json.dumps(row) + "\n")
     (out / "source.json").write_text(
         json.dumps(
             {
