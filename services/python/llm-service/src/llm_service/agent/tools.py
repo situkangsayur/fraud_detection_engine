@@ -67,10 +67,23 @@ async def _field_paths(ctx: ToolContext) -> list[str]:
     return ctx.field_paths
 
 
+# Small models ask for k=1 and then fill the gaps from memory; always retrieve enough context to ground the answer.
+_MIN_REGULATION_HITS = 4
+
+
+def _int_arg(a: dict[str, Any], name: str, default: int, lo: int, hi: int) -> int:
+    """Small models often send 0, null or strings for optional integers; fall back to the default and clamp."""
+    try:
+        v = int(a.get(name) or default)
+    except (TypeError, ValueError):
+        v = default
+    return min(max(v if v > 0 else default, lo), hi)
+
+
 # ---------------------------------------------------------------------------- handlers
 async def _search_regulations(ctx: ToolContext, a: dict[str, Any]) -> Any:
     hits = await ctx.search.search(
-        ctx.call.tenant_id, str(a.get("query", "")), ctx.regulation_ids, k=int(a.get("k", 5))
+        ctx.call.tenant_id, str(a.get("query", "")), ctx.regulation_ids, k=_int_arg(a, "k", 5, _MIN_REGULATION_HITS, 10)
     )
     cites = [h.citation() for h in hits]
     for c in cites:
@@ -92,7 +105,7 @@ async def _get_rule(ctx: ToolContext, a: dict[str, Any]) -> Any:
 
 
 async def _rules_performance(ctx: ToolContext, a: dict[str, Any]) -> Any:
-    return await ctx.platform.rules_performance(ctx.call, int(a.get("since_days", 30)))
+    return await ctx.platform.rules_performance(ctx.call, _int_arg(a, "since_days", 30, 1, 365))
 
 
 async def _validate(ctx: ToolContext, a: dict[str, Any]) -> Any:
@@ -100,11 +113,11 @@ async def _validate(ctx: ToolContext, a: dict[str, Any]) -> Any:
 
 
 async def _backtest(ctx: ToolContext, a: dict[str, Any]) -> Any:
-    return await ctx.platform.backtest_rule(ctx.call, dict(a["rule"]), int(a.get("since_days", 30)))
+    return await ctx.platform.backtest_rule(ctx.call, dict(a["rule"]), _int_arg(a, "since_days", 30, 1, 365))
 
 
 async def _overview(ctx: ToolContext, a: dict[str, Any]) -> Any:
-    return await ctx.platform.analytics_overview(ctx.call, int(a.get("since_days", 7)))
+    return await ctx.platform.analytics_overview(ctx.call, _int_arg(a, "since_days", 7, 1, 365))
 
 
 async def _drift(ctx: ToolContext, _: dict[str, Any]) -> Any:
@@ -120,11 +133,11 @@ async def _clusters(ctx: ToolContext, _: dict[str, Any]) -> Any:
 
 
 async def _components(ctx: ToolContext, a: dict[str, Any]) -> Any:
-    return await ctx.platform.graph_components(ctx.call, int(a.get("min_size", 3)))
+    return await ctx.platform.graph_components(ctx.call, _int_arg(a, "min_size", 3, 2, 1000))
 
 
 async def _communities(ctx: ToolContext, a: dict[str, Any]) -> Any:
-    return await ctx.platform.graph_communities(ctx.call, int(a.get("min_size", 3)))
+    return await ctx.platform.graph_communities(ctx.call, _int_arg(a, "min_size", 3, 2, 1000))
 
 
 async def _project_context(ctx: ToolContext, _: dict[str, Any]) -> Any:
@@ -184,7 +197,10 @@ TOOLS: dict[str, Tool] = {
             "search_regulations",
             "Hybrid search over the regulations/policies attached to this project. "
             "Returns chunks with code + section for citation.",
-            _obj({"query": {"type": "string"}, "k": {"type": "integer", "minimum": 1, "maximum": 10}}, ["query"]),
+            _obj(
+                {"query": {"type": "string"}, "k": {"type": "integer", "minimum": _MIN_REGULATION_HITS, "maximum": 10}},
+                ["query"],
+            ),
             _search_regulations,
         ),
         Tool(
@@ -206,7 +222,7 @@ TOOLS: dict[str, Tool] = {
         Tool(
             "get_rules_performance",
             "Per-rule evaluated/matched/trapped counts, hit rate and precision.",
-            _obj({"since_days": {"type": "integer"}}),
+            _obj({"since_days": {"type": "integer", "minimum": 1, "maximum": 365}}),
             _rules_performance,
         ),
         Tool(
@@ -218,13 +234,13 @@ TOOLS: dict[str, Tool] = {
         Tool(
             "backtest_rule_definition",
             "Backtest an (unsaved) rule envelope on recent project data.",
-            _obj({"rule": _RULE_PARAM, "since_days": {"type": "integer"}}, ["rule"]),
+            _obj({"rule": _RULE_PARAM, "since_days": {"type": "integer", "minimum": 1, "maximum": 365}}, ["rule"]),
             _backtest,
         ),
         Tool(
             "get_analytics_overview",
             "Event volumes, decision mix, daily trend, score histogram, open cases.",
-            _obj({"since_days": {"type": "integer"}}),
+            _obj({"since_days": {"type": "integer", "minimum": 1, "maximum": 365}}),
             _overview,
         ),
         Tool(
@@ -245,13 +261,13 @@ TOOLS: dict[str, Tool] = {
         Tool(
             "get_graph_components",
             "Connected customer components (shared device/phone/card/address...) with fraud counts.",
-            _obj({"min_size": {"type": "integer"}}),
+            _obj({"min_size": {"type": "integer", "minimum": 2}}),
             _components,
         ),
         Tool(
             "get_graph_communities",
             "Louvain communities of the customer graph with fraud rate.",
-            _obj({"min_size": {"type": "integer"}}),
+            _obj({"min_size": {"type": "integer", "minimum": 2}}),
             _communities,
         ),
         Tool(

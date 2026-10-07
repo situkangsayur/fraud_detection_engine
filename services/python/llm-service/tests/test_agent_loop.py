@@ -8,7 +8,7 @@ import pytest
 import respx
 
 from llm_service.agent.loop import FINALISE_INSTRUCTION, run_agent, run_agent_to_completion
-from llm_service.agent.tools import TOOLS, ToolContext
+from llm_service.agent.tools import TOOLS, ToolContext, _int_arg
 from llm_service.analysis.proposals import ProposalPipeline
 from llm_service.clients.platform import CallContext, PlatformClient
 from tests.conftest import PROJECT, TENANT, USER
@@ -127,3 +127,15 @@ async def test_string_or_dict_arguments(settings: Any, raw: Any) -> None:
             tool_timeout=2,
         )
         assert json.loads(json.dumps(final["tool_calls"][0]["args"])) == {"since_days": 3}
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [({}, 5), ({"k": 0}, 5), ({"k": None}, 5), ({"k": "3"}, 3), ({"k": "x"}, 5), ({"k": -2}, 5), ({"k": 50}, 10)],
+)
+def test_int_args_from_the_model_fall_back_and_clamp(raw: dict[str, Any], expected: int) -> None:
+    assert _int_arg(raw, "k", 5, 1, 10) == expected
+
+
+def test_regulation_search_has_a_floor() -> None:
+    assert _int_arg({"k": 1}, "k", 5, 4, 10) == 4
