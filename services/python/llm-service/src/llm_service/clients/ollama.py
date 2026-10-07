@@ -116,7 +116,7 @@ class OllamaClient:
             resp = await self._http.post("/api/chat", json=body)
             resp.raise_for_status()
         except httpx.HTTPError as exc:
-            raise OllamaError(f"ollama chat failed: {exc}") from exc
+            raise OllamaError(f"ollama chat failed: {type(exc).__name__}: {exc}") from exc
         data = resp.json()
         message: Message = data.get("message") or {}
         if isinstance(message.get("content"), str):
@@ -153,7 +153,7 @@ class OllamaClient:
                 if rest := think.flush():
                     yield {"content": rest}
         except httpx.HTTPError as exc:
-            raise OllamaError(f"ollama stream failed: {exc}") from exc
+            raise OllamaError(f"ollama stream failed: {type(exc).__name__}: {exc}") from exc
 
     async def embed(self, texts: list[str], *, model: str | None = None) -> list[list[float]]:
         if not texts:
@@ -168,7 +168,7 @@ class OllamaClient:
                 )
                 resp.raise_for_status()
             except httpx.HTTPError as exc:
-                raise OllamaError(f"ollama embed failed: {exc}") from exc
+                raise OllamaError(f"ollama embed failed: {type(exc).__name__}: {exc}") from exc
             out.extend(resp.json()["embeddings"])
         return out
 

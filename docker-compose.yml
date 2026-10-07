@@ -231,6 +231,7 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
       OLLAMA_THINK: ${OLLAMA_THINK:-}   # false = skip reasoning on thinking models (qwen3, deepseek-r1)
+      OLLAMA_TIMEOUT_S: ${OLLAMA_TIMEOUT_S:-180}   # raise (e.g. 900) when the model runs on CPU
       OPENSEARCH_URL: http://opensearch:9200
       REGULATION_DIR: /regulations
     volumes:
