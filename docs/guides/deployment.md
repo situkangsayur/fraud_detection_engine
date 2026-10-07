@@ -167,5 +167,6 @@ Migrasi bersifat maju saja (forward-only). Selalu backup sebelum upgrade.
 | Login gagal "Bad Request" / "premature close" | header `Cookie` terlalu besar karena banyak aplikasi lain di host/IP yang sama (cookie berlaku per host, bukan per port). Web menerima header s/d 64 KB; bila masih terjadi, hapus cookie untuk host tersebut. |
 | Upload regulasi gagal `index_create_block_exception` | disk host ≥ 95% (*flood stage* OpenSearch). Kosongkan disk; blok lepas otomatis setelah di bawah ambang. |
 | Seed simulator berhenti dengan `401 ExpiredSignature` | versi simulator lama (tidak login ulang). Seed penuh lebih lama dari masa berlaku token. |
+| Ringkasan simulator `skipped: ingest failed … 408` | batch ingest melewati `REQUEST_TIMEOUT_SECS` (30 s) core-api. Versi baru memakai batch kecil (200 load_only / 25 score) dan keluar dengan kode 1, sehingga reset demo mengulang. |
 | Halaman project 404 setelah reset demo | ID project berubah setiap reset. Buka `/projects`. |
 | Docker gagal pull image (IPv6 / DNS timeout) | jaringan host; ulangi build, atau nonaktifkan IPv6 di `daemon.json`. |
