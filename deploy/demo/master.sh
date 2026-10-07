@@ -34,33 +34,6 @@ psql_super() {   # psql_super <sql…> — runs as the Postgres superuser inside
   docker compose exec -T postgres sh -c 'psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "${POSTGRES_DB:-fraud}" -tA' <<<"$1"
 }
 
-# Moves every timestamptz value of the platform schemas forward by the time elapsed since the snapshot, so a
-# restored master looks like it ran until a moment ago (dashboards default to recent windows). Triggers (e.g. the
-# append-only audit log) are bypassed for this session only.
-SHIFT_SQL='
-SET session_replication_role = replica;
-DO $$
-DECLARE
-  delta interval := now() - (SELECT value::timestamptz FROM demo_master.meta WHERE key = ''snapshot_at'');
-  r record;
-  cols text;
-BEGIN
-  FOR r IN SELECT table_schema, table_name FROM information_schema.tables
-           WHERE table_schema IN (''core'',''rules'',''graph'',''ml'',''llm'',''ingest'') AND table_type = ''BASE TABLE''
-  LOOP
-    SELECT string_agg(format(''%I = %I + %L::interval'', column_name, column_name, delta), '', '')
-      INTO cols FROM information_schema.columns
-     WHERE table_schema = r.table_schema AND table_name = r.table_name AND data_type = ''timestamp with time zone'';
-    IF cols IS NOT NULL THEN
-      EXECUTE format(''UPDATE %I.%I SET %s'', r.table_schema, r.table_name, cols);
-    END IF;
-  END LOOP;
-  UPDATE demo_master.meta SET value = now()::text WHERE key = ''snapshot_at'';
-  RAISE NOTICE ''shifted by %'', delta;
-END $$;
-DELETE FROM core.refresh_tokens;
-'
-
 snapshot() {
   local root="$1" base="$2" dir
   dir="$base/$(date -u +%Y%m%dT%H%M%SZ)"
@@ -82,14 +55,15 @@ snapshot() {
 }
 
 restore() {
-  local base="$1" dir
+  local root="$1" base="$2" dir
   dir="$(readlink -f "$base/current" || true)"
   [ -d "$dir" ] || { log "no master at $base/current"; return 1; }
   log "restoring $(basename "$dir")"
   docker compose stop
   for v in "${VOLUMES[@]}"; do volume_tar "$v" "$dir" extract; done
   docker compose up -d --wait --wait-timeout 900
-  psql_super "$SHIFT_SQL" >/dev/null
+  # move every timestamp forward by the time since the snapshot (see shift-time.sql)
+  psql_super "$(cat "$root/deploy/demo/shift-time.sql")" >/dev/null
   log "restored and time-shifted"
 }
 
@@ -103,7 +77,7 @@ main() {
   flock -n 9 || { echo "another reset/snapshot is running"; return 0; }
   case "${1:-}" in
     snapshot) snapshot "$root" "$base" ;;
-    restore) restore "$base" ;;
+    restore) restore "$root" "$base" ;;
     info) ls -la "$base"; cat "$base/current/tenants.txt" 2>/dev/null || true ;;
     *) echo "usage: $0 snapshot|restore|info" >&2; return 2 ;;
   esac
