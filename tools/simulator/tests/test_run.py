@@ -126,3 +126,24 @@ def test_full_flow_against_mock_gateway(monkeypatch) -> None:
     assert labels and all(lb["subject_type"] in ("event", "customer") for lb in labels)
     assert any(lb["label"] == "fraud" and lb.get("fraud_type") for lb in labels)
     assert rep.event_labels + rep.customer_labels == len(labels)
+
+
+@respx.mock
+def test_expired_token_triggers_one_relogin() -> None:
+    logins = respx.post("http://gw.test/api/v1/auth/login").mock(
+        side_effect=[
+            httpx.Response(200, json={"access_token": "old"}),
+            httpx.Response(200, json={"access_token": "new"}),
+        ]
+    )
+    labels = respx.get("http://gw.test/api/v1/projects/p/labels").mock(
+        side_effect=lambda req: (
+            httpx.Response(200, json={"items": []})
+            if req.headers["authorization"] == "Bearer new"
+            else httpx.Response(401, json={"detail": "invalid token: ExpiredSignature"})
+        )
+    )
+    gw = Gateway("http://gw.test", retries=2)
+    gw.login("a@b", "pw")
+    assert gw.request("GET", "/api/v1/projects/p/labels") == {"items": []}
+    assert logins.call_count == 2 and labels.call_count == 2

@@ -125,6 +125,7 @@ def main() -> int:
         failures += 1
         log(f"regulations failed: {exc}")
     for pid, slug in projects:
+        analyst, approver = login(ANALYST), login(APPROVER)  # fresh tokens: all trainings outlast one token TTL
         for kind in TRAINING:
             try:
                 train_and_activate(analyst, approver, pid, slug, kind)

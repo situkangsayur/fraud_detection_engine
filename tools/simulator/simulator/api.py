@@ -25,6 +25,7 @@ class Gateway:
         self.http = client or httpx.Client(base_url=base_url.rstrip("/"), timeout=timeout)
         self.retries = retries
         self.token: str | None = None
+        self._credentials: tuple[str, str] | None = None  # to re-login when the access token expires mid-run
 
     # ------------------------------------------------------------------ plumbing
     def request(
@@ -42,6 +43,7 @@ class Gateway:
         if auth and self.token:
             hdrs["Authorization"] = f"Bearer {self.token}"
         delay = 1.0
+        relogged = False
         for attempt in range(1, self.retries + 1):
             try:
                 resp = self.http.request(method, path, json=json, params=params, headers=hdrs)
@@ -52,6 +54,12 @@ class Gateway:
             else:
                 if resp.status_code < 300 or resp.status_code in ok:
                     return resp.json() if resp.content else None
+                if resp.status_code == 401 and auth and self._credentials and not relogged:
+                    # a full seed outlives the access-token TTL: sign in again and repeat the request
+                    relogged = True
+                    self.login(*self._credentials)
+                    hdrs["Authorization"] = f"Bearer {self.token}"
+                    continue
                 if resp.status_code not in (429, 502, 503, 504) or attempt == self.retries:
                     raise ApiError(resp.status_code, resp.text, method, path)
             time.sleep(delay)
@@ -70,6 +78,7 @@ class Gateway:
             "POST", "/api/v1/auth/login", json={"email": email, "password": password}, auth=False
         )
         self.token = data["access_token"]
+        self._credentials = (email, password)
         return dict(data)
 
     def find_tenant(self, slug: str) -> dict[str, Any] | None:
