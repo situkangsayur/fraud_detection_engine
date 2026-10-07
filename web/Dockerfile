@@ -26,4 +26,6 @@ USER node
 EXPOSE 3000
 HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=5 \
   CMD wget -qO- http://127.0.0.1:3000/healthz || exit 1
-CMD ["node", ".output/server/index.mjs"]
+# Browsers send every cookie of the host, whatever the port. Other apps on the same IP (Keycloak, Supabase…)
+# can push the Cookie header past Node's 16 KB default, and Node then drops the connection ("premature close").
+CMD ["node", "--max-http-header-size=65536", ".output/server/index.mjs"]
