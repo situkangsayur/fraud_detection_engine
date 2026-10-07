@@ -50,6 +50,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--data-dir", type=Path, default=Path.home() / "datasets" / "fraud-public")
     p.add_argument("--out", type=Path, default=Path.home() / "datasets" / "fraud-research")
     p.add_argument("--skip-export", action="store_true")
+    p.add_argument("--truth-only", action="store_true", help="only (re)write ground_truth.jsonl and source.json")
     return p
 
 
@@ -83,28 +84,7 @@ def main(argv: list[str] | None = None) -> int:
         flush=True,
     )
 
-    env = _env(tenant)
-    s = Settings(
-        gateway_url=os.environ.get("GATEWAY_URL", "http://localhost:8080"),
-        admin_email=os.environ.get("ADMIN_EMAIL", "admin@fraud.local"),
-        admin_password=os.environ["ADMIN_PASSWORD"],
-        tenant=tenant,
-        tenant_admin_email=env["SIM_TENANT_ADMIN_EMAIL"],
-        tenant_admin_password=env["SIM_TENANT_ADMIN_PASSWORD"],
-        seed=a.seed,
-    )
-    gw = Gateway(s.gateway_url)
-    s.phase = "history"
-    print(summary(run(gw, [ds], s)), flush=True)
-    _name_tenant(s, tenant, TENANT_NAMES.get(a.dataset))
-    _step("models + regulations", [sys.executable, "deploy/demo/post_seed.py"], env)
-    s.phase = "online"
-    reports = run(gw, [ds], s)
-    print(summary(reports), flush=True)
-    if any(x.startswith("ingest failed") for r in reports for x in r.skipped):
-        return 1
-    _step("analyst activity", [sys.executable, "deploy/demo/activity.py"], env, required=False)
-
+    # Ground truth first: it only depends on the dataset + sampling, and an aborted run can still be exported.
     out = (a.out / tenant).expanduser()
     out.mkdir(parents=True, exist_ok=True)
     truth = out / "ground_truth.jsonl"
@@ -134,6 +114,32 @@ def main(argv: list[str] | None = None) -> int:
             indent=2,
         )
     )
+    if a.truth_only:
+        print(f"[research-seed] wrote {out / 'ground_truth.jsonl'}", flush=True)
+        return 0
+
+    env = _env(tenant)
+    s = Settings(
+        gateway_url=os.environ.get("GATEWAY_URL", "http://localhost:8080"),
+        admin_email=os.environ.get("ADMIN_EMAIL", "admin@fraud.local"),
+        admin_password=os.environ["ADMIN_PASSWORD"],
+        tenant=tenant,
+        tenant_admin_email=env["SIM_TENANT_ADMIN_EMAIL"],
+        tenant_admin_password=env["SIM_TENANT_ADMIN_PASSWORD"],
+        seed=a.seed,
+    )
+    gw = Gateway(s.gateway_url)
+    s.phase = "history"
+    print(summary(run(gw, [ds], s)), flush=True)
+    _name_tenant(s, tenant, TENANT_NAMES.get(a.dataset))
+    _step("models + regulations", [sys.executable, "deploy/demo/post_seed.py"], env)
+    s.phase = "online"
+    reports = run(gw, [ds], s)
+    print(summary(reports), flush=True)
+    if any(x.startswith("ingest failed") for r in reports for x in r.skipped):
+        return 1
+    _step("analyst activity", [sys.executable, "deploy/demo/activity.py"], env, required=False)
+
     if not a.skip_export:
         _step(
             "research export",
