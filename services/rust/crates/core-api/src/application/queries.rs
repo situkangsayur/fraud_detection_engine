@@ -58,7 +58,10 @@ pub async fn list_events(
               AND ($6::timestamptz IS NULL OR e.occurred_at >= $6) \
               AND ($7::timestamptz IS NULL OR e.occurred_at < $7) \
               AND ($8::float8 IS NULL OR d.final_score >= $8) \
-              AND ($9::text IS NULL OR e.external_id = $9 OR e.external_id LIKE $9 || '%' OR c.external_id = $9) \
+              AND ($9::text IS NULL \
+                   OR e.id IN (SELECT x.id FROM core.events x WHERE x.project_id = $1 \
+                               AND x.external_id ~>=~ $9 AND x.external_id ~<~ ($9 || chr(1114111))) \
+                   OR e.customer_id IN (SELECT y.id FROM core.customers y WHERE y.project_id = $1 AND y.external_id = $9)) \
             ORDER BY e.occurred_at DESC, e.id) t \
          LIMIT $10 OFFSET $11",
     )

@@ -33,7 +33,9 @@ TRAIN_TIMEOUT_S = 1800
 # One supervised and one unsupervised setup per demo project (pre-payment checkout, post-payment, promo, returns).
 TRAINING = {
     "supervised": {"algorithm": "mlp_backprop"},
-    "unsupervised": {"anomaly_algorithm": "isolation_forest", "clustering_algorithm": "hdbscan"},
+    # ml-service trains unsupervised models on the last 90 days by default; public datasets span up to a year,
+    # so take the whole history (supervised already uses all labelled history)
+    "unsupervised": {"anomaly_algorithm": "isolation_forest", "clustering_algorithm": "hdbscan", "since_days": 3650},
 }
 
 
