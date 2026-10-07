@@ -16,6 +16,14 @@ export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 
 DATASETS=(sparkov paysim saml-d)
 
+research() {   # research <dataset>… — one failing dataset does not stop the others
+  local d failed=()
+  for d in "$@"; do
+    uv run --directory tools/research_seed python -m research_seed --dataset "$d" || failed+=("$d")
+  done
+  [ ${#failed[@]} -eq 0 ] || { echo "research seeding failed for: ${failed[*]}"; return 1; }
+}
+
 main() {
   local root mode
   root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -30,15 +38,11 @@ main() {
     demo) deploy/demo/reset-demo.sh ;;
     research)
       [ $# -gt 0 ] || set -- "${DATASETS[@]}"
-      for d in "$@"; do
-        uv run --directory tools/research_seed python -m research_seed --dataset "$d"
-      done
+      research "$@"
       ;;
     master)
       deploy/demo/reset-demo.sh
-      for d in "${DATASETS[@]}"; do
-        uv run --directory tools/research_seed python -m research_seed --dataset "$d"
-      done
+      research "${DATASETS[@]}"
       deploy/demo/master.sh snapshot
       ;;
     restore) deploy/demo/master.sh restore ;;

@@ -49,12 +49,25 @@ def call(method: str, path: str, token: str | None = None, body: object = None, 
         req.add_header("content-type", content_type)
     if token:
         req.add_header("authorization", f"Bearer {token}")
-    try:
-        with urllib.request.urlopen(req, timeout=120) as resp:
-            text = resp.read().decode()
-            return json.loads(text) if text else {}
-    except urllib.error.HTTPError as exc:
-        raise RuntimeError(f"{method} {path} → {exc.code}: {exc.read().decode()[:300]}") from exc
+    for attempt in range(6):
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                text = resp.read().decode()
+                return json.loads(text) if text else {}
+        except urllib.error.HTTPError as exc:
+            detail = exc.read().decode()[:300]
+            # A busy service (model training) can briefly fail the gateway health check: Traefik then answers
+            # "503 no available server" without forwarding, so even a POST is safe to resend. Other 5xx are only
+            # retried for reads.
+            transient = (exc.code == 503 and "no available server" in detail) or (
+                method == "GET" and exc.code in (502, 503, 504))
+            if not transient or attempt == 5:
+                raise RuntimeError(f"{method} {path} → {exc.code}: {detail}") from exc
+        except urllib.error.URLError as exc:
+            if attempt == 5:
+                raise RuntimeError(f"{method} {path} → {exc.reason}") from exc
+        time.sleep(5 * (attempt + 1))
+    raise RuntimeError("unreachable")
 
 
 def login(user: tuple[str, str]) -> str:
