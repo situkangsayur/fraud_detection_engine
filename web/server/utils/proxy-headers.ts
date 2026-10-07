@@ -96,8 +96,21 @@ export function checkCsrf({ method, headers, expectedOrigin }: CsrfInput): { ok:
   const h = lowerKeys(headers)
   if (first(h[CSRF_HEADER]) !== CSRF_VALUE) return { ok: false, reason: 'missing anti-CSRF header' }
   const origin = first(h.origin)
-  if (origin && expectedOrigin && origin !== expectedOrigin) return { ok: false, reason: 'cross-origin request' }
+  if (origin && expectedOrigin && originHost(origin) !== originHost(expectedOrigin)) return { ok: false, reason: 'cross-origin request' }
   return { ok: true }
+}
+
+/**
+ * Host[:port] of an origin. The scheme is ignored on purpose: behind a TLS-terminating proxy the browser sends
+ * `https://host` while the BFF itself is reached over plain http.
+ */
+function originHost(origin: string): string | null {
+  try {
+    return new URL(origin).host.toLowerCase()
+  }
+  catch {
+    return null
+  }
 }
 
 /** Seconds until the JWT expires (unverified decode — only used to refresh proactively), or null if not a JWT. */

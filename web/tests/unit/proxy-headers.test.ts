@@ -33,6 +33,10 @@ describe('BFF proxy header logic', () => {
     expect(checkCsrf({ method: 'POST', headers: {} }).ok).toBe(false)
     expect(checkCsrf({ method: 'POST', headers: { 'x-requested-with': 'fraud-web' }, expectedOrigin: 'https://app' })).toEqual({ ok: true })
     expect(checkCsrf({ method: 'DELETE', headers: { 'x-requested-with': 'fraud-web', 'origin': 'https://evil' }, expectedOrigin: 'https://app' }).ok).toBe(false)
+    // TLS terminated by a reverse proxy: browser origin is https, the BFF sees http on the same host
+    expect(checkCsrf({ method: 'POST', headers: { 'x-requested-with': 'fraud-web', 'origin': 'https://fds.example.id' }, expectedOrigin: 'http://fds.example.id' })).toEqual({ ok: true })
+    expect(checkCsrf({ method: 'POST', headers: { 'x-requested-with': 'fraud-web', 'origin': 'https://fds.example.id.evil.io' }, expectedOrigin: 'http://fds.example.id' }).ok).toBe(false)
+    expect(checkCsrf({ method: 'POST', headers: { 'x-requested-with': 'fraud-web', 'origin': 'null' }, expectedOrigin: 'http://app' }).ok).toBe(false)
   })
 
   it('decodes JWT expiry for proactive refresh', () => {
