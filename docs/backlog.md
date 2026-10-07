@@ -55,6 +55,10 @@ Langkah berikutnya:
 2. **Perbaiki driver GPU nvda11-gpu** (DKMS nvidia 595 belum ter-build untuk kernel 7.0) agar LLM lokal cepat.
 3. Review & merge PR #1.
 4. P1: rekomendasi threshold per project, rule money mule, hydration mismatch UI (kosmetik, 5 halaman).
+   Dataset riset 2026-10-07 menguatkan: FPR pada threshold 50 = 23% (checkout) dan 36% (promo); kalibrasi
+   FPR ≤ 5% tetap recall ~100%. Money mule recall@80 hanya 0,35.
+6. P2 UI: banner "dipaksa oleh … (force_review)" tampil pada keputusan *Tolak* (skor ≥ 80 menang atas force_review —
+   pesan menyesatkan); catatan case menampilkan UUID user, bukan nama.
 5. P1 (keamanan demo publik): rate limit login, nonaktifkan aksi destruktif bagi akun demo atau gunakan peran viewer.
 
 ---

@@ -82,10 +82,11 @@ Jadwal cron (di nvda11-gpu dipasang setelah master pertama dibuat):
 | Dataset | Sampling | Ground truth | Catatan validitas |
 |---|---|---|---|
 | Sparkov | jendela waktu terakhir untuk **semua** kartu (histori per kartu tetap utuh) | `is_fraud` → `card_fraud` | mirror HF pernah lewat Excel: `cc_num` dibulatkan 6 digit dan detik hilang. Waktu memakai `unix_time` (presisi detik); identitas kartu dibangun ulang dari nomor terbulatkan + nama + tanggal lahir (910 kartu) |
-| PaySim | semua tipe transaksi; fraud ±2% dari sampel | `isFraud` → `ato_transfer` / `ato_cash_out` | akun asal hampir selalu unik (tidak ada histori per customer); graph lewat rekening tujuan |
+| PaySim | semua tipe transaksi; fraud ±2% dari sampel | `isFraud` → `ato_transfer` / `ato_cash_out` | akun asal hampir selalu unik (tidak ada histori per customer); graph lewat rekening tujuan. Aktivitas PaySim menumpuk di awal timeline, dan batas history dihitung berdasarkan **waktu**, sehingga porsi online hanya ±15% event |
 | SAML-D | per akun pengirim; ±30% baris dari akun yang melakukan pencucian uang (semua transaksinya disertakan) | `Laundering_type` (tipologi per transaksi) | fraud rate per event tetap rendah (±0,4%) karena pelaku juga bertransaksi normal |
 
-Timeline setiap dataset digeser agar berakhir pada waktu seeding; jarak antar-event tidak berubah.
+Timeline setiap dataset digeser agar berakhir pada waktu seeding; jarak antar-event tidak berubah. Batas history/online
+adalah 70% **rentang waktu** (bukan 70% jumlah event), sama seperti tenant demo.
 
 ## 5. Hasil
 
