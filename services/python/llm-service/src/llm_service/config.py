@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -26,6 +26,14 @@ class Settings(BaseSettings):
     ollama_embed_model: str = "bge-m3"
     ollama_timeout_s: float = 180.0
     ollama_num_ctx: int = 8192
+    # Reasoning ("thinking") models such as qwen3/deepseek-r1: None = leave the server default, False = ask the
+    # server to skip it, True = keep it. <think> blocks are always stripped from returned content.
+    ollama_think: bool | None = None
+
+    @field_validator("ollama_think", mode="before")
+    @classmethod
+    def _blank_think_is_unset(cls, v: object) -> object:
+        return None if isinstance(v, str) and not v.strip() else v
 
     opensearch_url: str = "http://opensearch:9200"
     opensearch_index_prefix: str = "reg-chunks-"
