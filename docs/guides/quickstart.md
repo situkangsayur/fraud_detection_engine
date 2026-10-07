@@ -79,9 +79,12 @@ Seed penuh (2.000 customer × 60 hari) memakan waktu ±1 jam; data selalu berakh
 
 ### Reset demo harian
 
-Untuk instalasi demo publik, `deploy/demo/reset-demo.sh` mengembalikan semuanya ke kondisi default. Skrip ini
-menghapus volume data (Postgres, OpenSearch, model, regulasi, upload), menyalakan stack, menjalankan simulator, lalu
-`post_seed.py`. Bila seed gagal, seluruh langkah diulang sekali. Jadwalkan setiap tengah malam:
+Untuk instalasi demo publik, `deploy/demo/reset-demo.sh` mengembalikan semuanya ke kondisi default dengan urutan
+seperti di produksi: hapus volume data → seed **history** (70% pertama, `load_only`) → regulasi + latih & approve
+model → seed **online** (30% sisanya di-score dengan semua engine aktif) → simulasi aktivitas analis
+(`deploy/demo/activity.py`: case, cluster, blacklist, laporan & proposal LLM) → ekspor **dataset riset** ke
+`~/datasets/fraud-live-demo/<tanggal>/` (lihat [research-dataset.md](../technical/research-dataset.md)). Seed simulator
+berganti setiap hari (`YYYYMMDD`), sehingga setiap hari menjadi replikasi independen. Jadwalkan setiap tengah malam:
 
 ```cron
 0 0 * * * /path/ke/repo/deploy/demo/reset-demo.sh >> ~/.local/state/fraud-demo-reset.log 2>&1

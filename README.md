@@ -84,7 +84,7 @@ Panduan lengkap: [Quickstart](docs/guides/quickstart.md) · [Deployment](docs/gu
 | Operasional | [Deployment & operasional](docs/guides/deployment.md) |
 | Teknologi & metode | [Technical overview: tech stack, arsitektur software & AI, metode/sains](docs/technical/technical-overview.md) |
 | Kontrak teknis | [Arsitektur](docs/technical/architecture.md) · [Multi-tenancy](docs/technical/multi-tenancy.md) · [Rule DSL](docs/technical/rule-dsl.md) · [Data source](docs/technical/data-sources.md) · [Feature catalog](docs/technical/feature-catalog.md) · [ML plugins](docs/technical/ml-plugins.md) · [API](docs/technical/api-contract.md) |
-| Kualitas | [Evaluasi deteksi end-to-end](docs/technical/evaluation.md) · [Gap analysis](docs/technical/gap-analysis.md) |
+| Kualitas | [Dataset riset harian (demo live)](docs/technical/research-dataset.md) · [Evaluasi deteksi end-to-end](docs/technical/evaluation.md) · [Gap analysis](docs/technical/gap-analysis.md) |
 | Rencana | [Backlog](docs/backlog.md) |
 
 ## Struktur repository
