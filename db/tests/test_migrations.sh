@@ -32,13 +32,13 @@ SELECT 'tenant1 -> projects visible: ' || count(*) FROM core.projects;
 COMMIT;
 SQL
 echo "== cross-tenant insert must fail:"
-docker exec -e PGPASSWORD=c fraud-mig-test psql -h 127.0.0.1 -U core_api -d fraud -tA -c "BEGIN; SELECT set_config('app.tenant_id','11111111-1111-1111-1111-111111111111', true); INSERT INTO core.customers (tenant_id, project_id, external_id) VALUES ('22222222-2222-2222-2222-222222222222','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','c1'); COMMIT;" 2>&1 | tail -1
+docker exec -e PGPASSWORD=c fraud-mig-test psql -h 127.0.0.1 -U core_api -d fraud -tA -c "BEGIN; SELECT set_config('app.tenant_id','11111111-1111-1111-1111-111111111111', true); INSERT INTO core.customers (tenant_id, project_id, external_id) VALUES ('22222222-2222-2222-2222-222222222222','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','c1'); COMMIT;" 2>&1
 echo "== composite FK (tenant1 row pointing at tenant2 project) must fail:"
-docker exec -e PGPASSWORD=m fraud-mig-test psql -h 127.0.0.1 -U migrator -d fraud -tA -c "INSERT INTO core.customers (tenant_id, project_id, external_id) VALUES ('11111111-1111-1111-1111-111111111111','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','c1');" 2>&1 | tail -1
+docker exec -e PGPASSWORD=m fraud-mig-test psql -h 127.0.0.1 -U migrator -d fraud -tA -c "INSERT INTO core.customers (tenant_id, project_id, external_id) VALUES ('11111111-1111-1111-1111-111111111111','bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb','c1');" 2>&1
 echo "== audit append-only:"
-docker exec -e PGPASSWORD=c fraud-mig-test psql -h 127.0.0.1 -U core_api -d fraud -tA -c "INSERT INTO core.audit_log (actor_type, action) VALUES ('system','test'); UPDATE core.audit_log SET action='x';" 2>&1 | tail -1
+docker exec -e PGPASSWORD=c fraud-mig-test psql -h 127.0.0.1 -U core_api -d fraud -tA -c "INSERT INTO core.audit_log (actor_type, action) VALUES ('system','test'); UPDATE core.audit_log SET action='x';" 2>&1
 echo "== rule_service velocity read of core.events allowed:"
-docker exec -e PGPASSWORD=r fraud-mig-test psql -h 127.0.0.1 -U rule_service -d fraud -tA -c "SELECT count(*) FROM core.events" 2>&1 | tail -1
+docker exec -e PGPASSWORD=r fraud-mig-test psql -h 127.0.0.1 -U rule_service -d fraud -tA -c "SELECT count(*) FROM core.events" 2>&1
 echo "== rule_service write to core.events denied:"
-docker exec -e PGPASSWORD=r fraud-mig-test psql -h 127.0.0.1 -U rule_service -d fraud -tA -c "DELETE FROM core.events" 2>&1 | tail -1
+docker exec -e PGPASSWORD=r fraud-mig-test psql -h 127.0.0.1 -U rule_service -d fraud -tA -c "DELETE FROM core.events" 2>&1
 exit $status
