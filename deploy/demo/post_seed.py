@@ -116,7 +116,11 @@ def train_and_activate(analyst: str, approver: str, pid: str, slug: str, kind: s
     status = "training"
     while status == "training" and time.time() < deadline:
         time.sleep(10)
-        status = call("GET", f"/projects/{pid}/ml/models/{model_id}", analyst).get("status", "?")
+        try:
+            status = call("GET", f"/projects/{pid}/ml/models/{model_id}", analyst).get("status", "?")
+        except RuntimeError as exc:  # ml-service busy training on a saturated CPU can drop out of the gateway
+            if not any(code in str(exc) for code in ("→ 502", "→ 503", "→ 504")):
+                raise
     if status != "ready":
         log(f"{slug} {kind}: training ended as {status!r}, skipped")
         return
