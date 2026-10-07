@@ -38,13 +38,16 @@ Variabel yang paling sering diubah:
 | `ALLOWED_SOURCE_RANGES` | jaringan yang boleh mengakses UI/API (lihat bagian 5) |
 | `WEB_HOST_PORT`, `GATEWAY_HOST_PORT` | port UI (default 3000) dan API (default 8080) |
 | `OLLAMA_CHAT_MODEL`, `OLLAMA_EMBED_MODEL` | model LLM (default `qwen2.5:7b-instruct`, `bge-m3`) |
+| `COMPOSE_PROFILES` | `local-llm` menjalankan container Ollama sendiri; kosongkan bila memakai server Ollama yang sudah ada (lihat `deployment.md` §4) |
+| `LLM_PROVIDER`, `GEMINI_API_KEY` | `gemini` = chat/agent lewat Gemini, embedding tetap di Ollama (lihat `deployment.md` §4) |
+| `DEMO_LOGIN_HINTS` | khusus instalasi demo: daftar akun yang ditampilkan di halaman login (`email\|password\|peran;…`) |
 
 ## 3. Jalankan
 
 ```bash
 docker compose up -d --build        # build + start (migrasi DB berjalan otomatis lewat service "migrate")
 docker compose ps                   # tunggu semua "healthy"
-docker compose up ollama-pull       # unduh model LLM (sekali saja)
+docker compose up ollama-pull       # unduh model LLM (sekali saja; hanya dengan profile local-llm)
 ```
 
 ## 4. Data demo (opsional)
@@ -62,6 +65,30 @@ lewat webhook dengan struktur record "milik klien", sehingga fitur mapping ikut 
 1. Login sebagai `analyst@demo.local`, buka **ML → Supervised** lalu **Train**, kemudian **Submit**.
 2. Login sebagai `approver@demo.local` dan **Approve** model tersebut. Lakukan hal yang sama di **ML → Unsupervised**.
 3. Event berikutnya dinilai oleh kelima engine.
+
+Langkah 1–2 bisa diotomatiskan. Skrip berikut meng-upload regulasi di `data_regulations/`, meng-attach-nya ke semua
+project, lalu melatih dan meng-approve satu model supervised (`mlp_backprop`) dan satu setup unsupervised
+(`isolation_forest` + `hdbscan`) per project:
+
+```bash
+set -a; . ./.env; set +a
+python3 deploy/demo/post_seed.py
+```
+
+Seed penuh (2.000 customer × 60 hari) memakan waktu ±1 jam; data selalu berakhir pada waktu simulator dijalankan.
+
+### Reset demo harian
+
+Untuk instalasi demo publik, `deploy/demo/reset-demo.sh` mengembalikan semuanya ke kondisi default. Skrip ini
+menghapus volume data (Postgres, OpenSearch, model, regulasi, upload), menyalakan stack, menjalankan simulator, lalu
+`post_seed.py`. Bila seed gagal, seluruh langkah diulang sekali. Jadwalkan setiap tengah malam:
+
+```cron
+0 0 * * * /path/ke/repo/deploy/demo/reset-demo.sh >> ~/.local/state/fraud-demo-reset.log 2>&1
+```
+
+> **Jangan pernah** menjalankan skrip ini di instalasi berisi data sungguhan. ID project berubah setiap reset,
+> sehingga bookmark ke `/p/<id>` lama diarahkan ke daftar project.
 
 ## 5. Akses
 
@@ -85,6 +112,9 @@ Klien dari jaringan lain mendapat HTTP **403**. Setelah mengubah daftar ini, jal
 
 > Jika port 3000 sudah dipakai aplikasi lain di server, set `WEB_HOST_PORT` ke port lain (mis. `3080`).
 
+Bahasa UI: Bahasa Indonesia (default) atau English. Pilih lewat tombol **ID/EN** di halaman login, atau dari menu
+user setelah login. Pilihan disimpan di cookie `fraud_locale`.
+
 ## 6. Cek cepat
 
 ```bash
@@ -97,5 +127,6 @@ docker compose logs -f core-api                                                 
 
 ```bash
 docker compose down        # stop (data tetap ada di volume)
-docker compose down -v     # stop + HAPUS semua data (database, model, index)
+docker compose down -v     # stop + HAPUS semua data (database, model, index, termasuk cache model Ollama)
+deploy/demo/reset-demo.sh  # khusus demo: hapus data + seed ulang (cache model Ollama dipertahankan)
 ```

@@ -66,20 +66,45 @@ sudo ufw allow from 192.168.11.0/24 to any port 3000,8080 proto tcp
 | Resource | OpenSearch heap (`OPENSEARCH_HEAP`), pool DB per service (`*_DB_POOL`), `ML_TRAINING_WORKERS`. |
 | Replika | rule-service & graph-service stateless dan bisa diskalakan horizontal. ml-service: training cukup 1 replika. web: multi-replika butuh sticky session. |
 
-## 4. LLM: Ollama lokal atau server GPU eksternal
+## 4. LLM: Ollama lokal, server Ollama yang sudah ada, atau Gemini
 
-Secara default llm-service memakai container `ollama` lokal. Jika sudah ada server Ollama ber-GPU (mis.
-**nvda11-gpu** yang sudah menjalankan model qwen), arahkan ke sana lewat `.env`:
+llm-service memakai dua jenis model: **chat** (agent, analisis, rekomendasi rule) dan **embedding** (index
+regulasi). Embedding selalu lewat Ollama; chat bisa lewat Ollama atau Gemini.
+
+### a. Container Ollama milik stack (default)
+
+`COMPOSE_PROFILES=local-llm` di `.env` menyalakan container `ollama` (+ `ollama-pull` untuk mengunduh model).
+
+### b. Server Ollama yang sudah ada (mis. host GPU atau Ollama di host yang sama)
+
+Hapus `local-llm` dari `COMPOSE_PROFILES`; container `ollama` tidak dijalankan dan llm-service tidak lagi menunggunya.
 
 ```dotenv
-OLLAMA_URL=http://nvda11-gpu:11434
-OLLAMA_CHAT_MODEL=<nama model qwen di server itu>     # cek: curl http://nvda11-gpu:11434/api/tags
-OLLAMA_EMBED_MODEL=bge-m3                              # harus tersedia juga di server itu (ollama pull bge-m3)
+COMPOSE_PROFILES=
+OLLAMA_URL=http://nvda11-gpu:11434              # atau http://host.docker.internal:11434 untuk Ollama di host ini
+OLLAMA_CHAT_MODEL=qwen3:8b                      # cek: curl <OLLAMA_URL>/api/tags
+OLLAMA_EMBED_MODEL=bge-m3                       # harus tersedia di server itu (ollama pull bge-m3)
+OLLAMA_THINK=false                              # model "thinking" (qwen3, deepseek-r1) di Ollama ≥ 0.9
 ```
 
-Lalu jalankan `docker compose up -d llm-service`. Container llm-service harus bisa me-resolve dan menjangkau host
-tersebut (DNS/`/etc/hosts` atau pakai IP-nya). Model embedding harus **sama** untuk seluruh index: kalau model
-embedding diganti, dokumen regulasi harus di-upload ulang (dimensi vektor bisa berbeda).
+* `host.docker.internal` sudah dipetakan ke host (`extra_hosts: host-gateway`). Ollama di host harus listen di
+  `0.0.0.0` (`OLLAMA_HOST=0.0.0.0`).
+* Blok `<think>…</think>` dari model reasoning selalu dibuang dari jawaban, termasuk saat streaming.
+* Model embedding harus **sama** untuk seluruh index. Kalau diganti, upload ulang regulasi (dimensi vektor bisa
+  berbeda).
+
+### c. Gemini untuk chat
+
+```dotenv
+LLM_PROVIDER=gemini
+GEMINI_API_KEY=<key dari https://aistudio.google.com/apikey>
+GEMINI_MODEL=gemini-flash-latest
+```
+
+Chat, tool calling, streaming, dan output JSON (schema) dikirim ke endpoint Gemini yang OpenAI-compatible. Embedding
+tetap memakai Ollama, sehingga index regulasi lama tetap berlaku. Konsekuensinya, pertanyaan, potongan regulasi, dan
+ringkasan data project dikirim ke Google; pastikan ini sesuai kebijakan data Anda. Setelah mengubah `.env`, jalankan
+`docker compose up -d llm-service`.
 
 ### GPU lokal
 
@@ -87,9 +112,9 @@ embedding diganti, dokumen regulasi harus di-upload ulang (dimensi vektor bisa b
 docker compose -f docker-compose.yml -f docker-compose.gpu.yml up -d
 ```
 
-Butuh NVIDIA Container Toolkit di host. Tanpa GPU, model 7B tetap berjalan di CPU, tetapi respons chat dan analisis
-lebih lambat (hitungan puluhan detik). Untuk server kecil, pakai model yang lebih ringan, misalnya
-`OLLAMA_CHAT_MODEL=qwen2.5:3b-instruct`.
+Butuh NVIDIA Container Toolkit di host. Tanpa GPU, model 7–8B tetap berjalan di CPU, tetapi jawaban chat bisa
+memakan 1–3 menit. Model kecil sering mengabaikan instruksi; misalnya qwen3:8b pernah mengarang nomor pasal. Untuk
+server tanpa GPU, pertimbangkan Gemini atau model yang lebih ringan.
 
 ## 5. Backup & restore
 
@@ -139,3 +164,8 @@ Migrasi bersifat maju saja (forward-only). Selalu backup sebelum upgrade.
 | Chat/analisis AI lambat atau timeout | model belum ditarik (`ollama-pull`) atau tanpa GPU. Gunakan model lebih kecil. |
 | Keputusan selalu "approve" di project baru | belum ada model aktif dan threshold belum dikalibrasi. Lihat `evaluation.md` dan bagian Settings di panduan pengguna. |
 | `degraded: ["supervised"]` | ml-service down/timeout. Keputusan tetap keluar dari engine lain. |
+| Login gagal "Bad Request" / "premature close" | header `Cookie` terlalu besar karena banyak aplikasi lain di host/IP yang sama (cookie berlaku per host, bukan per port). Web menerima header s/d 64 KB; bila masih terjadi, hapus cookie untuk host tersebut. |
+| Upload regulasi gagal `index_create_block_exception` | disk host ≥ 95% (*flood stage* OpenSearch). Kosongkan disk; blok lepas otomatis setelah di bawah ambang. |
+| Seed simulator berhenti dengan `401 ExpiredSignature` | versi simulator lama (tidak login ulang). Seed penuh lebih lama dari masa berlaku token. |
+| Halaman project 404 setelah reset demo | ID project berubah setiap reset. Buka `/projects`. |
+| Docker gagal pull image (IPv6 / DNS timeout) | jaringan host; ulangi build, atau nonaktifkan IPv6 di `daemon.json`. |

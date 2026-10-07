@@ -7,6 +7,9 @@ own port.
 Conventions (architecture §6): JSON with snake_case; lists return `{items,total,page,page_size}`; errors use RFC 7807;
 `x-request-id` is propagated. `{pid}` is a project UUID and `{tid}` a tenant UUID.
 
+Date-range query parameters (`from`, `to`) accept RFC 3339 date-times or plain `YYYY-MM-DD` days (UTC): a bare
+`from` is that day's midnight, a bare `to` includes the whole day. JSON bodies still use RFC 3339.
+
 **Auth legend:**
 * **JWT(role)**: `Authorization: Bearer <jwt>`. The role is checked against the `prj[{pid}]` claim
   (`project_admin > approver > analyst > viewer`); tenant admins pass every project check of their tenant.

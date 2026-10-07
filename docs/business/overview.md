@@ -115,10 +115,55 @@ asisten AI.
 * Kualitas machine learning terawasi bergantung pada **label**. Di awal, andalkan rule engine dan deteksi anomali.
 * Asisten AI memberi **usulan**, bukan keputusan hukum. Interpretasi regulasi tetap menjadi tanggung jawab tim
   compliance.
-* Model bahasa berjalan **lokal** (Ollama), sehingga data tidak dikirim ke layanan AI pihak ketiga. Konsekuensinya,
-  server membutuhkan CPU/RAM (idealnya GPU) yang memadai.
+* Secara default model bahasa berjalan **lokal** (Ollama), sehingga data tidak dikirim ke layanan AI pihak ketiga.
+  Konsekuensinya, server membutuhkan CPU/RAM (idealnya GPU) yang memadai. Tanpa GPU, jawaban asisten bisa memakan
+  1–3 menit.
+* Sebagai opsi, percakapan asisten AI bisa memakai **Gemini (Google)** agar lebih cepat dan akurat. Dengan opsi ini,
+  pertanyaan dan potongan regulasi dikirim ke Google, jadi perlu persetujuan kebijakan data. Index regulasi tetap
+  dibuat di server sendiri.
+* Model AI kecil kadang **mengarang nomor pasal**. Selalu periksa kutipan pasal yang diberikan asisten.
 
-## 9. Istilah
+## 9. Hasil uji (data sintetis)
+
+Platform diuji dengan data sintetis 60 hari yang meniru pola fraud nyata, lalu diukur pada data yang **tidak** dipakai
+untuk melatih model:
+
+| Titik proteksi | Fraud tertangkap (recall) | Ketepatan tanda (precision) | Transaksi sah ikut ditandai |
+|---|---|---|---|
+| Checkout (sebelum bayar) | 95% | 40% | 7% |
+| Promo / voucher | 100% | 63% | 6% |
+| Setelah bayar | 82% | 18% | 32% |
+| Retur | 100% | 14% | 35% |
+
+Artinya, hampir semua fraud tertangkap. Namun di tahap setelah bayar dan retur masih terlalu banyak transaksi sah yang
+ikut ditahan dengan ambang default. Dengan ambang yang disesuaikan per project, ketepatannya naik ke sekitar 50–66%.
+Fitur rekomendasi ambang otomatis ada di rencana pengembangan.
+
+## 10. Teknologi di balik layar (versi sederhana)
+
+| Bagian | Teknologi | Kenapa dipilih |
+|---|---|---|
+| Inti penilaian transaksi | **Rust** | Sangat cepat dan stabil; keputusan keluar dalam hitungan milidetik |
+| Kecerdasan buatan (ML) | **Python** + PyTorch & scikit-learn | Standar industri untuk machine learning |
+| Penyimpanan data | **PostgreSQL** | Database andal; data tiap perusahaan dipisahkan langsung di level database |
+| Pencarian regulasi | **OpenSearch** | Mencari pasal berdasarkan makna maupun kata kunci |
+| Asisten AI | **Ollama** (lokal) atau **Gemini** (opsional) | Pilihan antara privasi penuh dan kecepatan |
+| Tampilan | **Nuxt (Vue)**, Bahasa Indonesia & English | Satu halaman untuk setiap mesin deteksi |
+| Instalasi | **Docker Compose** | Satu perintah untuk menjalankan semuanya |
+
+Cara kerja asisten AI dalam satu kalimat: dokumen regulasi dipecah per **pasal**, lalu setiap pertanyaan dijawab
+dengan terlebih dahulu **mencari pasal yang relevan** dan **menyebutkan sumbernya**. Asisten juga bisa membaca
+statistik platform (performa rule, anomali, jaringan) sebelum mengusulkan aturan baru. Detail teknis ada di
+[technical-overview.md](../technical/technical-overview.md).
+
+## 11. Demo
+
+Instalasi demo berisi satu perusahaan contoh ("Demo Marketplace") dengan 4 project: checkout, setelah bayar, promo, dan
+retur. Akun demo tercantum di halaman login. Setiap hari pukul **00.00 WIB** seluruh data demo dikembalikan ke
+kondisi awal: data transaksi 60 hari terakhir, regulasi POJK 12/2024, serta model ML yang aktif. Jangan memasukkan
+data sungguhan ke instalasi demo.
+
+## 12. Istilah
 
 | Istilah | Arti |
 |---|---|

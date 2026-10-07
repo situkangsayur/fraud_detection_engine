@@ -3,7 +3,7 @@
 Format: **Epic → Story**, prioritas **P0** (wajib untuk v1), **P1** (sebaiknya ada di v1 / segera setelahnya), **P2** (roadmap).
 Status: `todo` · `in-progress` · `done` · `blocked`. Update file ini setiap kali ada perubahan scope.
 
-Terakhir diperbarui: 2026-09-24.
+Terakhir diperbarui: 2026-10-07.
 
 ---
 
@@ -18,10 +18,10 @@ Terakhir diperbarui: 2026-09-24.
 | E4 Supervised ML (plugin) | P0 | done |
 | E5 Unsupervised ML / anomaly & clustering (plugin) | P0 | done |
 | E6 Graph engine | P0 | done |
-| E7 LLM assistant (regulasi, analisis, rekomendasi) | P0 | in-progress (uji live dengan Ollama) |
+| E7 LLM assistant (regulasi, analisis, rekomendasi) | P0 | in-progress (uji live: retrieval OK, kualitas jawaban qwen3:8b di CPU kurang) |
 | E8 Orkestrasi scoring & keputusan | P0 | done |
 | E9 Case management & labeling | P0 | done |
-| E10 UI (Nuxt) per engine | P0 | in-progress (penyelarasan dengan backend) |
+| E10 UI (Nuxt) per engine | P0 | done |
 | E11 Keamanan, audit, governance | P0 | done |
 | E12 Deployment (docker compose) & observability | P0 | done |
 | E13 Dokumentasi | P0 | done |
@@ -30,23 +30,32 @@ Terakhir diperbarui: 2026-09-24.
 
 ---
 
-## Tahap saat ini & langkah berikutnya (per 2026-09-24)
+## Tahap saat ini & langkah berikutnya (per 2026-10-07)
 
-**Tahap:** v1 sudah terimplementasi dan teruji end-to-end di docker compose (semua service healthy, 11 migrasi,
-simulator 4 project, model ML dilatih + di-approve, evaluasi out-of-sample di `docs/technical/evaluation.md`).
-Development **dijeda**. Lanjutkan dengan urutan berikut:
+**Tahap:** v1 berjalan sebagai demo publik di nvda11-gpu, CI hijau, PR #1 (`revamp/rust-nuxt-stack` → `master`) terbuka.
 
-1. **Web UI – penyelarasan dengan backend (dihentikan di tengah jalan).** Jalankan `npm run lint && npm run
-   typecheck && npm test && npm run build` di `web/`, lalu perbaiki sisa perbedaan shape. Yang sudah diketahui:
-   `/me.projects[].id`; detail event `{event, source, features, decision, labels, case, customer}`; case tanpa
-   `assigned_to_name`; reference-lists berupa array. Tambahkan footer + halaman `/about` (atribusi AGPL). Rebuild
-   image web dan crawl semua halaman sebagai analyst/approver/platform admin.
-2. **LLM live test memakai Ollama di `nvda11-gpu` (model qwen).** Set `OLLAMA_URL`/`OLLAMA_CHAT_MODEL` di `.env`,
-   pastikan `bge-m3` tersedia di sana, lalu jalankan skenario: upload `data_regulations/pojkatifraud.pdf` → attach ke
-   project → search → chat → analisis `recommend-rules` → proposal berstatus pending.
-3. Pastikan **CI hijau** di branch `revamp/rust-nuxt-stack` (sudah di-commit & push 2026-09-24), lalu buat PR ke `master`.
-4. P1 berikutnya: rekomendasi threshold per project, rule money mule, container Ollama lokal dibuat opsional
-   (compose profile) ketika memakai server GPU eksternal.
+Selesai pada 2026-10-07:
+- [x] Pindah host pengembangan ke nvda11-gpu; Ollama lokal jadi opsional (compose profile `local-llm`).
+- [x] Web UI selaras dengan backend (lint/typecheck/test/build hijau, crawl tanpa error API).
+- [x] CI hijau: lint web, smoke test migrasi yang flaky, ekspektasi skor ruleset shadow, port acak integration test.
+- [x] Bug dashboard: filter tanggal kini menerima `YYYY-MM-DD` maupun RFC 3339 (sebelumnya 400 "premature end of input").
+- [x] Login gagal "premature close" karena cookie host > 16 KB → batas header web 64 KB.
+- [x] Link project usang (setelah reset / sesi kedaluwarsa) diarahkan ke daftar project.
+- [x] Halaman login: info akun demo (`DEMO_LOGIN_HINTS`) dan tombol bahasa ID/EN.
+- [x] llm-service: strip `<think>`, `OLLAMA_THINK`, validasi argumen integer tool (bug `k:0`), minimal 4 chunk regulasi.
+- [x] llm-service: provider chat **Gemini** opsional (`LLM_PROVIDER=gemini`), embedding tetap Ollama.
+- [x] Simulator & post-seed login ulang saat token kedaluwarsa (seed > 1 jam).
+- [x] Reset demo harian 00.00 (`deploy/demo/reset-demo.sh` + `post_seed.py`): data 60 hari s/d hari ini, regulasi
+      POJK 12/2024, model `mlp_backprop` + `isolation_forest`/`hdbscan` aktif di semua project.
+- [x] Dokumentasi: `technical-overview.md` (stack, arsitektur software & AI, metode), ringkasan non-teknis diperluas.
+
+Langkah berikutnya:
+1. **Uji LLM sampai tuntas**: chat dengan minimal 4 chunk, skenario `recommend-rules` → proposal pending. Bila memakai
+   Gemini, perlu API key yang valid (key 2026-10-07 ditolak: 403).
+2. **Perbaiki driver GPU nvda11-gpu** (DKMS nvidia 595 belum ter-build untuk kernel 7.0) agar LLM lokal cepat.
+3. Review & merge PR #1.
+4. P1: rekomendasi threshold per project, rule money mule, hydration mismatch UI (kosmetik, 5 halaman).
+5. P1 (keamanan demo publik): rate limit login, nonaktifkan aksi destruktif bagi akun demo atau gunakan peran viewer.
 
 ---
 
