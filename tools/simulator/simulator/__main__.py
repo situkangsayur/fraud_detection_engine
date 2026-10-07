@@ -104,7 +104,9 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     reports = run(Gateway(s.gateway_url), datasets, s)
     print(summary(reports))
-    return 0
+    # a project whose ingest broke off is only partly seeded: fail so callers (the demo reset) can start over
+    failed = [r for r in reports if any(x.startswith("ingest failed") for x in r.skipped)]
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":

@@ -13,7 +13,9 @@ from simulator.scenarios import Dataset
 from simulator.shape import mapping
 
 SOURCE_SLUG = "sim-webhook"
-BATCH = 500
+# Each batch is one request under core-api's 30 s limit. Scored events call graph, ML and rules
+# (up to ~0.6 s each), and even load_only events resolve graph entities, so batches stay small.
+BATCH = {"load_only": 200, "score": 25}
 
 
 @dataclass
@@ -163,7 +165,7 @@ def ingest(
     mode = "load_only"
     for e in ds.events:
         m = "load_only" if e.ts <= cutoff else "score"
-        if m != mode or len(batch) >= BATCH:
+        if m != mode or len(batch) >= BATCH[mode]:
             flush(batch, mode)
             batch = []
             mode = m
