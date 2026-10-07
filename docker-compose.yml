@@ -227,6 +227,9 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}   # external GPU host, e.g. http://nvda11-gpu:11434
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:7b-instruct}
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:-bge-m3}
+      LLM_PROVIDER: ${LLM_PROVIDER:-ollama}   # gemini = chat via Gemini, embeddings stay on Ollama
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
       OLLAMA_THINK: ${OLLAMA_THINK:-}   # false = skip reasoning on thinking models (qwen3, deepseek-r1)
       OPENSEARCH_URL: http://opensearch:9200
       REGULATION_DIR: /regulations
@@ -295,6 +298,7 @@ services:
       NUXT_API_BASE_URL: http://gateway:80
       NUXT_SESSION_SECRET: ${WEB_SESSION_SECRET:?set WEB_SESSION_SECRET}
       NUXT_SESSION_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      NUXT_PUBLIC_DEMO_ACCOUNTS: ${DEMO_LOGIN_HINTS:-}   # demo installs only: shown on the login page
       PORT: 3000
     # not published: reachable only through the gateway's `ui` entrypoint (IP allow-list applies)
     healthcheck:

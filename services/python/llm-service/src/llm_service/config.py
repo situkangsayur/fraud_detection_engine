@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -29,6 +30,16 @@ class Settings(BaseSettings):
     # Reasoning ("thinking") models such as qwen3/deepseek-r1: None = leave the server default, False = ask the
     # server to skip it, True = keep it. <think> blocks are always stripped from returned content.
     ollama_think: bool | None = None
+
+    # Chat provider. "gemini" sends chat/agent calls to Gemini; embeddings always stay on Ollama.
+    llm_provider: Literal["ollama", "gemini"] = "ollama"
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-flash-latest"
+    gemini_base_url: str = "https://generativelanguage.googleapis.com/v1beta/openai"
+
+    @property
+    def chat_model(self) -> str:
+        return self.gemini_model if self.llm_provider == "gemini" else self.ollama_chat_model
 
     @field_validator("ollama_think", mode="before")
     @classmethod

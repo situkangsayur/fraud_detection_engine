@@ -27,7 +27,12 @@ def create_app(settings: Settings | None = None, container: Container | None = N
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         app.state.container = container or Container.build(settings)
-        log.info("llm_service_started", chat_model=settings.ollama_chat_model, embed_model=settings.ollama_embed_model)
+        log.info(
+            "llm_service_started",
+            provider=settings.llm_provider,
+            chat_model=settings.chat_model,
+            embed_model=settings.ollama_embed_model,
+        )
         yield
         await app.state.container.aclose()
 

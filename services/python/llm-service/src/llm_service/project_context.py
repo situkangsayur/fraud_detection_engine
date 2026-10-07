@@ -61,7 +61,7 @@ class ProjectContextLoader:
         regulation_ids = await run_in_threadpool(_regs)
         return ProjectContext(
             project=project,
-            model=llm_cfg.get("chat_model") or self._s.ollama_chat_model,
+            model=llm_cfg.get("chat_model") or self._s.chat_model,
             temperature=float(llm_cfg.get("temperature", 0.1) or 0.1),
             language=str(llm_cfg.get("language") or "id"),
             system_prompt_extra=str(llm_cfg.get("system_prompt_extra") or ""),

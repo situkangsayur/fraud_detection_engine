@@ -9,6 +9,7 @@ from fastapi import Request
 from llm_service.agent.chat import ChatService
 from llm_service.analysis.proposals import ProposalPipeline
 from llm_service.analysis.service import AnalysisService
+from llm_service.clients.gemini import GeminiClient
 from llm_service.clients.ollama import OllamaClient
 from llm_service.clients.platform import PlatformClient
 from llm_service.clients.vector_store import VectorStore
@@ -42,7 +43,7 @@ class Container:
         store: VectorStore | None = None,
         platform: PlatformClient | None = None,
     ) -> Container:
-        ollama = ollama or OllamaClient(settings)
+        ollama = ollama or (GeminiClient(settings) if settings.llm_provider == "gemini" else OllamaClient(settings))
         store = store or VectorStore(settings)
         platform = platform or PlatformClient(settings)
         jobs = JobRunner(max_concurrency=2)
