@@ -64,9 +64,11 @@ def _env(tenant: str) -> dict[str, str]:
     }
 
 
-def _step(name: str, cmd: list[str], env: dict[str, str]) -> None:
+def _step(name: str, cmd: list[str], env: dict[str, str], *, required: bool = True) -> None:
     print(f"[research-seed] {name}", flush=True)
-    subprocess.run(cmd, check=True, env=env, cwd=ROOT)
+    rc = subprocess.run(cmd, check=required, env=env, cwd=ROOT).returncode
+    if rc:
+        print(f"[research-seed] {name} had errors (continuing)", flush=True)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -101,7 +103,7 @@ def main(argv: list[str] | None = None) -> int:
     print(summary(reports), flush=True)
     if any(x.startswith("ingest failed") for r in reports for x in r.skipped):
         return 1
-    _step("analyst activity", [sys.executable, "deploy/demo/activity.py"], env)
+    _step("analyst activity", [sys.executable, "deploy/demo/activity.py"], env, required=False)
 
     out = (a.out / tenant).expanduser()
     out.mkdir(parents=True, exist_ok=True)
