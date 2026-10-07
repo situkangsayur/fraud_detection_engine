@@ -95,22 +95,22 @@ const stageIcon: Record<string, string> = {
               </p>
               <div class="flex flex-wrap gap-1.5 mt-3 text-xs">
                 <template v-if="p.ml_config">
-                <UBadge
-                  color="neutral"
-                  variant="soft"
-                  size="sm"
-                  icon="i-lucide-brain-circuit"
-                >
-                  {{ p.ml_config.supervised.algorithm }}
-                </UBadge>
-                <UBadge
-                  color="neutral"
-                  variant="soft"
-                  size="sm"
-                  icon="i-lucide-scatter-chart"
-                >
-                  {{ p.ml_config.unsupervised.anomaly_algorithm }} + {{ p.ml_config.unsupervised.clustering_algorithm }}
-                </UBadge>
+                  <UBadge
+                    color="neutral"
+                    variant="soft"
+                    size="sm"
+                    icon="i-lucide-brain-circuit"
+                  >
+                    {{ p.ml_config.supervised.algorithm }}
+                  </UBadge>
+                  <UBadge
+                    color="neutral"
+                    variant="soft"
+                    size="sm"
+                    icon="i-lucide-scatter-chart"
+                  >
+                    {{ p.ml_config.unsupervised.anomaly_algorithm }} + {{ p.ml_config.unsupervised.clustering_algorithm }}
+                  </UBadge>
                 </template>
                 <UBadge
                   color="neutral"

@@ -12,9 +12,11 @@ for i in $(seq 1 60); do
   if docker exec -e PGPASSWORD=m fraud-mig-test psql -h 127.0.0.1 -U migrator -d fraud -tAc 'select 1' >/dev/null 2>&1; then break; fi
   sleep 1
 done
+# Several smoke tests below are expected to fail inside psql, so the exit code only reflects the migrations.
+status=0
 for f in "$ROOT"/db/migrations/*.sql; do
   n=$(basename "$f"); echo "== $n"
-  docker exec -e PGPASSWORD=m fraud-mig-test psql -h 127.0.0.1 -U migrator -d fraud -v ON_ERROR_STOP=1 -q -f /migrations/$n
+  docker exec -e PGPASSWORD=m fraud-mig-test psql -h 127.0.0.1 -U migrator -d fraud -v ON_ERROR_STOP=1 -q -f /migrations/$n || status=1
 done
 echo "== RLS smoke test"
 docker exec -i -e PGPASSWORD=m fraud-mig-test psql -h 127.0.0.1 -U migrator -d fraud -v ON_ERROR_STOP=1 -q <<'SQL'
@@ -39,3 +41,4 @@ echo "== rule_service velocity read of core.events allowed:"
 docker exec -e PGPASSWORD=r fraud-mig-test psql -h 127.0.0.1 -U rule_service -d fraud -tA -c "SELECT count(*) FROM core.events" 2>&1 | tail -1
 echo "== rule_service write to core.events denied:"
 docker exec -e PGPASSWORD=r fraud-mig-test psql -h 127.0.0.1 -U rule_service -d fraud -tA -c "DELETE FROM core.events" 2>&1 | tail -1
+exit $status

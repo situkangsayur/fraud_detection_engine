@@ -1522,9 +1522,12 @@ async fn ruleset_edits_are_versioned_and_approval_gated() {
     let scores = r["rulesets"].as_array().unwrap();
     assert_eq!(scores.len(), 2);
     let shadow = scores.iter().find(|s| s["shadow"] == true).unwrap();
-    // rule-engine semantics: rules of a shadow ruleset are traced but excluded from every aggregation,
-    // including the shadow ruleset's own score (reported as 0).
-    assert_eq!(shadow["score"].as_f64().unwrap(), 0.0, "{shadow}");
+    // rule-dsl.md "Shadow semantics": a shadow ruleset reports its own would-be score (A 40 + B 30, capped by
+    // max_score 10) so the challenger can be compared, but it stays out of rules_score (still 40 above).
+    assert!(
+        (shadow["score"].as_f64().unwrap() - 10.0).abs() < 1e-6,
+        "{shadow}"
+    );
     assert!(
         find(&r["rule_results"], "RL-RS-A")
             .iter()
