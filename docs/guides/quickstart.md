@@ -75,7 +75,7 @@ UI dan API hanya bisa diakses dari jaringan yang tercantum di `ALLOWED_SOURCE_RA
 
 ```
 10.100.21.0/24      # jaringan VPN / kantor
-192.168.1.0/24      # LAN
+192.168.11.0/24     # LAN
 172.31.250.0/24     # internal docker (web → gateway)   ← jangan dihapus
 172.31.251.1/32     # akses dari server itu sendiri      ← jangan dihapus
 ```

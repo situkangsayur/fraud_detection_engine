@@ -3,7 +3,7 @@
 ## 1. Topologi
 
 ```
-Klien (10.100.21.0/24, 192.168.1.0/24)
+Klien (10.100.21.0/24, 192.168.11.0/24)
         │  :3000 (UI)   :8080 (API)
         ▼
   gateway (Traefik) ── IP allow-list ── routing per path ──┐
@@ -26,13 +26,13 @@ Klien (10.100.21.0/24, 192.168.1.0/24)
 
 ```dotenv
 BIND_ADDRESS=0.0.0.0
-ALLOWED_SOURCE_RANGES=10.100.21.0/24,192.168.1.0/24,172.31.250.0/24,172.31.251.1/32
+ALLOWED_SOURCE_RANGES=10.100.21.0/24,192.168.11.0/24,172.31.250.0/24,172.31.251.1/32
 ```
 
 | Entri | Arti |
 |---|---|
 | `10.100.21.0/24` | jaringan VPN/kantor |
-| `192.168.1.0/24` | LAN |
+| `192.168.11.0/24` | LAN |
 | `172.31.250.0/24` | internal: web BFF → gateway (**wajib**) |
 | `172.31.251.1/32` | akses dari server itu sendiri, masuk lewat bridge docker (**wajib** jika perlu akses lokal) |
 
@@ -44,7 +44,7 @@ ALLOWED_SOURCE_RANGES=10.100.21.0/24,192.168.1.0/24,172.31.250.0/24,172.31.251.1
 
 ```bash
 sudo ufw allow from 10.100.21.0/24 to any port 3000,8080 proto tcp
-sudo ufw allow from 192.168.1.0/24 to any port 3000,8080 proto tcp
+sudo ufw allow from 192.168.11.0/24 to any port 3000,8080 proto tcp
 ```
 
 > Docker menulis aturan iptables sendiri untuk port yang di-publish dan bisa melewati ufw. Karena itu allow-list di

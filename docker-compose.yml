@@ -270,7 +270,7 @@ services:
     environment:
       # Comma-separated CIDRs allowed to reach the UI and API. Keep 172.31.250.0/24 (web BFF → gateway) and
       # 172.31.251.1/32 (access from the host itself arrives via the docker bridge gateway).
-      ALLOWED_SOURCE_RANGES: ${ALLOWED_SOURCE_RANGES:-10.100.21.0/24,192.168.1.0/24,172.31.250.0/24,172.31.251.1/32}
+      ALLOWED_SOURCE_RANGES: ${ALLOWED_SOURCE_RANGES:-10.100.21.0/24,192.168.11.0/24,172.31.250.0/24,172.31.251.1/32}
     volumes:
       - ./deploy/gateway:/etc/traefik:ro
     ports:
