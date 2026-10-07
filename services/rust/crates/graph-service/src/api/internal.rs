@@ -152,9 +152,12 @@ pub async fn export(
                 .await;
         }
     });
+    // fused: the compression layer polls the body once more after it ended, and a bare `unfold` panics then
+    // (it took the whole graph-service down at the end of every export)
     let stream = futures::stream::unfold(rx_lines, |mut rx| async move {
         rx.recv().await.map(|item| (item, rx))
-    });
+    })
+    .fuse();
     Ok((
         [(header::CONTENT_TYPE, "application/x-ndjson")],
         Body::from_stream(stream),
