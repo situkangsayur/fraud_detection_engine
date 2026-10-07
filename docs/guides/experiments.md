@@ -23,7 +23,11 @@ history (70% pertama, load_only) + label tertunda 7 hari
    → ekspor dataset riset + ground truth
 ```
 
-Seluruh tenant lalu disimpan sebagai **master snapshot**. Setiap pukul 00.00 WIB, platform di-restore dari master
+Seluruh tenant lalu disimpan sebagai **master snapshot**.
+
+> **Penting:** restore 00.00 mengembalikan *semua* tenant ke master (downtime ±5 menit). Hasil eksperimen baru di
+> platform (tenant baru, model baru, perubahan rule) **hilang** kecuali disimpan dengan `deploy/demo/master.sh snapshot`.
+> File dataset di `~/datasets/` tidak tersentuh restore. Setiap pukul 00.00 WIB, platform di-restore dari master
 dengan timestamp digeser ke "sekarang". Apa pun yang diubah pengunjung hilang, sedangkan hasil eksperimen tetap konsisten.
 
 ## 2. Prasyarat
