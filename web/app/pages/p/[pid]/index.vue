@@ -8,7 +8,7 @@ const { pid, base, project, apiBase } = useProject()
 useHead({ title: () => `${t('nav.dashboard')} · ${project.value?.name ?? ''}` })
 
 const range = ref<'7' | '14' | '30'>('14')
-const query = computed(() => ({ from: new Date(Date.now() - Number(range.value) * 86_400_000).toISOString().slice(0, 10) }))
+const query = computed(() => ({ from: dayStartIso(new Date(Date.now() - Number(range.value) * 86_400_000).toISOString().slice(0, 10)) }))
 const { data: overview, status } = await useAsyncData(`overview-${pid.value}`, () => api.get<AnalyticsOverview>(`${apiBase.value}/analytics/overview`, { query: query.value }), { watch: [range] })
 const { data: drift } = await useAsyncData<DriftRow[]>(`drift-${pid.value}`, () => api.get<DriftResponse>(`${apiBase.value}/analytics/drift`, { silent: true }).then(r => r.items).catch(() => []), { default: () => [] })
 const { data: settings } = await useAsyncData(`settings-${pid.value}`, () => api.get<ProjectSettings>(`${apiBase.value}/settings`, { silent: true }).catch(() => null))

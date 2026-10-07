@@ -29,6 +29,7 @@ pub mod error;
 pub mod http;
 pub mod pagination;
 pub mod pii;
+pub mod query_time;
 pub mod server;
 pub mod telemetry;
 

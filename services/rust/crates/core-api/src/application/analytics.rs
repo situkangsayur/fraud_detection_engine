@@ -15,7 +15,9 @@ use crate::state::AppState;
 
 #[derive(Debug, Clone, Default, Deserialize, utoipa::IntoParams)]
 pub struct Range {
+    #[serde(default, deserialize_with = "platform::query_time::opt_from")]
     pub from: Option<DateTime<Utc>>,
+    #[serde(default, deserialize_with = "platform::query_time::opt_to")]
     pub to: Option<DateTime<Utc>>,
 }
 

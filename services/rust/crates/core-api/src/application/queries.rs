@@ -24,7 +24,9 @@ pub struct EventFilter {
     pub decision: Option<String>,
     pub customer_id: Option<Uuid>,
     pub source_id: Option<Uuid>,
+    #[serde(default, deserialize_with = "platform::query_time::opt_from")]
     pub from: Option<DateTime<Utc>>,
+    #[serde(default, deserialize_with = "platform::query_time::opt_to")]
     pub to: Option<DateTime<Utc>>,
     pub min_score: Option<f64>,
     /// External id (exact or prefix) of the event or of its customer.
@@ -218,7 +220,9 @@ pub struct AuditFilter {
     pub action: Option<String>,
     pub subject_type: Option<String>,
     pub subject_id: Option<String>,
+    #[serde(default, deserialize_with = "platform::query_time::opt_from")]
     pub from: Option<DateTime<Utc>>,
+    #[serde(default, deserialize_with = "platform::query_time::opt_to")]
     pub to: Option<DateTime<Utc>>,
 }
 

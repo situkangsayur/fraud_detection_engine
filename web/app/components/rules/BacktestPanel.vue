@@ -15,7 +15,7 @@ const busy = ref(false)
 async function run() {
   busy.value = true
   try {
-    result.value = await api.post<BacktestResult>(props.endpoint, { ...form, ...(props.body?.() ?? {}) })
+    result.value = await api.post<BacktestResult>(props.endpoint, { ...form, from: dayStartIso(form.from), to: dayEndIso(form.to), ...(props.body?.() ?? {}) })
   }
   catch { /* toast */ }
   finally { busy.value = false }
