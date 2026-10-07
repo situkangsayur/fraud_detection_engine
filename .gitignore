@@ -40,3 +40,6 @@ dump/
 legacy/e2e/node_modules/
 legacy/e2e/test-results/
 legacy/e2e/playwright-report/
+
+# research export virtualenv
+tools/research_export/.venv/

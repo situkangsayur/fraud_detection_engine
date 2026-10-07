@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 
 from simulator.api import ApiError, Gateway
@@ -43,6 +44,9 @@ class Settings:
     seed: int
     load_only_share: float = 0.7
     force: bool = False
+    # "all" = history + online in one go; "history" = only the load_only part (+ its labels) so models can be
+    # trained and approved before "online" scores the rest with every engine active.
+    phase: str = "all"
 
     @classmethod
     def from_env(cls) -> Settings:
@@ -58,6 +62,7 @@ class Settings:
             seed=int(os.environ.get("SIM_SEED", "42")),
             # Share of the time window sent as load_only (history); the rest is scored. 0 → score everything.
             load_only_share=float(os.environ.get("SIM_LOAD_ONLY_SHARE", "0.7")),
+            phase=os.environ.get("SIM_PHASE", "all"),
         )
 
 
@@ -145,13 +150,22 @@ def ingest(
     ids: dict[str, str] = {}
     if not ds.events:
         return ids
-    t0, t1 = ds.events[0].ts, ds.events[-1].ts
-    cutoff = t0 + (t1 - t0) * s.load_only_share
+    cutoff = history_cutoff(ds, s)
 
     def flush(batch: list[dict[str, Any]], mode: str) -> None:
         if not batch:
             return
-        res = gw.ingest_batch(slug, api_key, batch, mode)
+        try:
+            res = gw.ingest_batch(slug, api_key, batch, mode)
+        except ApiError as e:
+            # 408 = the batch hit core-api's request timeout (dense graph linking). core-api deduplicates on
+            # (source, external_id), so resending is safe: split the batch until it fits.
+            if e.status != 408 or len(batch) == 1:
+                raise
+            half = len(batch) // 2
+            flush(batch[:half], mode)
+            flush(batch[half:], mode)
+            return
         rep.sent[mode] += len(batch)
         rep.accepted += int(res.get("accepted", 0))
         rep.rejected += int(res.get("rejected", 0))
@@ -164,6 +178,8 @@ def ingest(
     batch: list[dict[str, Any]] = []
     mode = "load_only"
     for e in ds.events:
+        if not in_phase(e.ts, cutoff, s.phase):
+            continue
         m = "load_only" if e.ts <= cutoff else "score"
         if m != mode or len(batch) >= BATCH[mode]:
             flush(batch, mode)
@@ -174,10 +190,25 @@ def ingest(
     return ids
 
 
+def history_cutoff(ds: Dataset, s: Settings) -> datetime:
+    t0, t1 = ds.events[0].ts, ds.events[-1].ts
+    return t0 + (t1 - t0) * s.load_only_share
+
+
+def in_phase(ts: datetime, cutoff: datetime, phase: str) -> bool:
+    return phase == "all" or (phase == "history") == (ts <= cutoff)
+
+
 def post_labels(
     gw: Gateway, ds: Dataset, pid: str, ids: dict[str, str], s: Settings, rep: ProjectReport
 ) -> None:
     ev_labels, cust_labels = plan_labels(ds, s.seed)
+    if s.phase != "all" and ds.events:
+        cutoff = history_cutoff(ds, s)
+        ts = {str(e.record["no_ref"]): e.ts for e in ds.events}
+        ev_labels = [lab for lab in ev_labels if in_phase(ts[lab.external_id], cutoff, s.phase)]
+        if s.phase == "online":
+            cust_labels = []  # confirmed rings are already known from the history phase
     for lab in ev_labels:
         eid = ids.get(lab.external_id) or gw.find_event_id(pid, lab.external_id)
         if not eid:
@@ -220,14 +251,14 @@ def run(gw: Gateway, datasets: list[Dataset], s: Settings) -> list[ProjectReport
         src = gw.find_source(pid, slug)
         existing = gw.count_events(pid, str(src["id"])) if src else 0
         ids: dict[str, str] = {}
-        if existing and not s.force:
+        if existing and not s.force and s.phase != "online":
             rep.skipped.append(f"ingest ({existing} events already present)")
         else:
             try:
                 ids = ingest(gw, ds, pid, slug, key, s, rep)
             except ApiError as e:
                 rep.skipped.append(f"ingest failed: {e}")
-        if gw.count_labels(pid) and not s.force:
+        if gw.count_labels(pid) and not s.force and s.phase != "online":
             rep.skipped.append("labels (already present)")
         else:
             post_labels(gw, ds, pid, ids, s, rep)

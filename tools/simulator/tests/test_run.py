@@ -147,3 +147,37 @@ def test_expired_token_triggers_one_relogin() -> None:
     gw.login("a@b", "pw")
     assert gw.request("GET", "/api/v1/projects/p/labels") == {"items": []}
     assert logins.call_count == 2 and labels.call_count == 2
+
+
+def test_history_then_online_phases_partition_events_and_labels() -> None:
+    from simulator.run import history_cutoff, in_phase
+
+    ds = generate_all(200, 20, 7, datetime(2026, 10, 1, tzinfo=UTC), ["checkout"])[0]
+    s = _settings()
+    cutoff = history_cutoff(ds, s)
+    hist = [e for e in ds.events if in_phase(e.ts, cutoff, "history")]
+    online = [e for e in ds.events if in_phase(e.ts, cutoff, "online")]
+    assert hist and online
+    assert len(hist) + len(online) == len(ds.events)
+    assert max(e.ts for e in hist) <= cutoff < min(e.ts for e in online)
+    assert all(in_phase(e.ts, cutoff, "all") for e in ds.events)
+
+
+def test_timed_out_batches_are_split_and_resent() -> None:
+    from simulator.api import ApiError
+    from simulator.run import ProjectReport, ingest
+
+    ds = generate_all(150, 10, 3, datetime(2026, 10, 1, tzinfo=UTC), ["checkout"])[0]
+    sizes: list[int] = []
+
+    class SlowGateway:
+        def ingest_batch(self, slug, key, records, mode):
+            if len(records) > 60:
+                raise ApiError(408, "", "POST", "/api/v1/ingest/x/batch")
+            sizes.append(len(records))
+            return {"accepted": len(records), "rejected": 0, "decisions": []}
+
+    rep = ProjectReport("checkout", len(ds.events), ds.typology_counts())
+    ingest(SlowGateway(), ds, "p", "x", "k", _settings(), rep)  # type: ignore[arg-type]
+    assert sum(sizes) == len(ds.events) == rep.accepted
+    assert max(sizes) <= 60

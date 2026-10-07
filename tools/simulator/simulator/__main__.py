@@ -34,6 +34,12 @@ def _parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--force", action="store_true", help="re-send even if data/labels already exist")
     p.add_argument(
+        "--phase",
+        choices=["all", "history", "online"],
+        default=os.environ.get("SIM_PHASE", "all"),
+        help="history = load_only part + its labels; online = scored part (train/approve models in between)",
+    )
+    p.add_argument(
         "--run-tag",
         default=os.environ.get("SIM_RUN_TAG", ""),
         help="namespace external ids (new customers/events), e.g. for an out-of-sample evaluation run",
@@ -98,7 +104,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"wrote {n} records → {out}")
         return 0
     s = Settings.from_env()
-    s.seed, s.force = a.seed, a.force
+    s.seed, s.force, s.phase = a.seed, a.force, a.phase
     if not s.admin_password:
         print("ADMIN_PASSWORD is required", file=sys.stderr)
         return 2
