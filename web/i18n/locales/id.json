@@ -261,7 +261,9 @@
     "email": "Email",
     "password": "Kata sandi",
     "failed": "Gagal masuk",
-    "hint": "Hubungi admin tenant jika lupa kata sandi."
+    "hint": "Hubungi admin tenant jika lupa kata sandi.",
+    "demoTitle": "Akun demo",
+    "demoHint": "Klik baris untuk mengisi form. Data demo di-reset setiap hari pukul 00.00."
   },
   "projects": {
     "description": "Satu proyek = satu titik proteksi (mis. sebelum bayar, setelah bayar, retur) dengan rule, model, graph dan regulasinya sendiri.",

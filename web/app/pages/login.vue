@@ -10,6 +10,17 @@ const session = useSessionStore()
 useHead({ title: () => t('login.title') })
 
 const form = reactive({ email: '', password: '' })
+
+const demoAccounts = computed(() => String(useRuntimeConfig().public.demoAccounts || '')
+  .split(';')
+  .map(row => row.split('|').map(x => x.trim()))
+  .filter(([email, password]) => email && password)
+  .map(([email, password, role]) => ({ email: email!, password: password!, role: role ?? '' })))
+
+function useDemo(a: { email: string, password: string }) {
+  form.email = a.email
+  form.password = a.password
+}
 const error = ref('')
 const busy = ref(false)
 
@@ -20,7 +31,10 @@ async function submit() {
     const res = await $fetch<{ me: Me | null }>('/api/auth/login', { method: 'POST', body: form, headers: { 'x-requested-with': 'fraud-web' } })
     await refreshSession()
     session.set(res.me)
-    const next = typeof route.query.next === 'string' && route.query.next.startsWith('/') ? route.query.next : '/'
+    let next = typeof route.query.next === 'string' && route.query.next.startsWith('/') ? route.query.next : '/'
+    // a project link from an older session may point to a project this user cannot see (any more)
+    const nextPid = next.match(/^\/p\/([^/?#]+)/)?.[1]
+    if (nextPid && !res.me?.projects.some(p => p.id === nextPid)) next = '/projects'
     await navigateTo(next)
   }
   catch (err) {
@@ -95,12 +109,36 @@ async function submit() {
         :label="t('actions.login')"
       />
     </form>
+    <div
+      v-if="demoAccounts.length"
+      class="mt-4 rounded-md border border-default p-3 text-xs"
+    >
+      <p class="font-medium mb-1">
+        {{ t('login.demoTitle') }}
+      </p>
+      <p class="text-muted mb-2">
+        {{ t('login.demoHint') }}
+      </p>
+      <button
+        v-for="a in demoAccounts"
+        :key="a.email"
+        type="button"
+        class="flex w-full justify-between gap-2 rounded px-1 py-0.5 text-left hover:bg-elevated"
+        @click="useDemo(a)"
+      >
+        <span><span class="font-mono">{{ a.email }}</span> <span class="text-muted">· {{ a.role }}</span></span>
+        <span class="font-mono">{{ a.password }}</span>
+      </button>
+    </div>
     <template #footer>
       <div class="flex items-center justify-between">
         <p class="text-xs text-muted">
           {{ t('login.hint') }}
         </p>
-        <UColorModeButton size="xs" />
+        <div class="flex items-center gap-2">
+          <LocaleSwitch />
+          <UColorModeButton size="xs" />
+        </div>
       </div>
     </template>
   </UCard>

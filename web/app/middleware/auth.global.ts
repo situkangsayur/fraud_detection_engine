@@ -24,11 +24,10 @@ export default defineNuxtRouteMiddleware(async (to) => {
     throw createError({ statusCode: err instanceof ApiError ? err.status || 503 : 503, statusMessage: err instanceof Error ? err.message : 'Platform unavailable', fatal: true })
   }
 
-  // Project routes: the user must be a member (tenant admins are implicitly project_admin).
+  // Project routes: the user must be a member (tenant admins are implicitly project_admin). Unknown ids — e.g. a
+  // bookmark or `?next=` from before a demo reset re-created the projects — go back to the project list.
   const pid = to.params.pid as string | undefined
-  if (pid && !session.roleIn(pid)) {
-    throw createError({ statusCode: 404, statusMessage: 'Project not found', fatal: false })
-  }
+  if (pid && !session.roleIn(pid)) return navigateTo('/projects')
   if (to.path.startsWith('/admin') && !session.isPlatformAdmin) return navigateTo('/')
   if (to.path.startsWith('/tenant') && !session.isTenantAdmin && !session.isPlatformAdmin && !to.path.startsWith('/tenant/regulations')) return navigateTo('/')
 })

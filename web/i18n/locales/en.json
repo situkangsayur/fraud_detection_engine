@@ -261,7 +261,9 @@
     "email": "Email",
     "password": "Password",
     "failed": "Sign-in failed",
-    "hint": "Ask your tenant admin if you forgot your password."
+    "hint": "Ask your tenant admin if you forgot your password.",
+    "demoTitle": "Demo accounts",
+    "demoHint": "Click a row to fill the form. Demo data is reset every day at 00:00."
   },
   "projects": {
     "description": "One project = one protection point (e.g. pre-payment, post-payment, returns) with its own rules, models, graph and regulations.",

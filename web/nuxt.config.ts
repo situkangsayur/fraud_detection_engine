@@ -30,6 +30,8 @@ export default defineNuxtConfig({
       appName: 'Fraud Platform',
       appVersion: pkg.version, // NUXT_PUBLIC_APP_VERSION overrides (e.g. image tag)
       sourceUrl: 'https://github.com/situkangsayur/fraud_detection_engine',
+      // NUXT_PUBLIC_DEMO_ACCOUNTS="email|password|role;…" shows sign-in hints on /login (demo installs only)
+      demoAccounts: '',
     },
   },
 
