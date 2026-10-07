@@ -5,6 +5,16 @@ unsupervised ML, graph, cases, labels and the LLM assistant. It is meant for ana
 (*Five Engines, One Decision*), next to the synthetic evaluation in [evaluation.md](evaluation.md) and the
 public-dataset evaluation (`tools/public_eval`, separate instance).
 
+## Two seeding modes, one install
+
+* **demo** — tenant `demo`, synthetic simulator (below).
+* **research** — one tenant per public dataset (`exp-sparkov`, `exp-paysim`, `exp-saml-d`), loaded by
+  `tools/research_seed` with the same protocol; exports go to `~/datasets/fraud-research/<tenant>/` with the dataset's
+  own labels as ground truth.
+
+All tenants are archived together as the **master snapshot** (`deploy/demo/master.sh`), restored at 00:00 with
+timestamps shifted to the present. Commands and the reproduction tutorial: [experiments.md](../guides/experiments.md).
+
 ## How it is produced
 
 `deploy/demo/reset-demo.sh` (cron 00:00 WIB on the demo host) runs:
