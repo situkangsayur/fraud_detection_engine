@@ -31,6 +31,25 @@ Kemampuan platform:
 * **Tipologi fraud:** carding, account takeover, pengambilalihan rekening, sistem dibobol, abuse promo/voucher/cashback,
   abuse retur, money mule.
 
+## Tampilan
+
+Demo publik: **https://fds.hendrikarisma.my.id** (akun tercantum di halaman login; data kembali ke kondisi awal setiap 00.00 WIB).
+
+| | |
+|---|---|
+| ![Login: akun demo & eksperimen per tenant](docs/images/screenshots/01-login.png) | ![Dashboard project: keputusan, distribusi skor, skor per engine, drift](docs/images/screenshots/03-dashboard.png) |
+| Login: akun demo & eksperimen per tenant | Dashboard project: keputusan, distribusi skor, skor per engine, drift |
+| ![Detail event: skor 4 engine, alasan, latensi](docs/images/screenshots/12-event-detail.png) | ![Case: event pemicu, trace rule, catatan investigasi](docs/images/screenshots/13-case-detail.png) |
+| Detail event: skor 4 engine, alasan, latensi | Case: event pemicu, trace rule, catatan investigasi |
+| ![Graph explorer: jalur ke pelanggan fraud terdekat](docs/images/screenshots/07-graph.png) | ![ML unsupervised: anomali & cluster (PCA)](docs/images/screenshots/09-ml-unsupervised.png) |
+| Graph explorer: jalur ke pelanggan fraud terdekat | ML unsupervised: anomali & cluster (PCA) |
+| ![Rule engine: rule berversi, maker–checker, shadow](docs/images/screenshots/05-rules.png) | ![ML supervised: model registry & metrik](docs/images/screenshots/08-ml-supervised.png) |
+| Rule engine: rule berversi, maker–checker, shadow | ML supervised: model registry & metrik |
+
+Screenshot lain: [`docs/images/screenshots/`](docs/images/screenshots/).
+
+---
+
 ## Arsitektur singkat
 
 ```mermaid
