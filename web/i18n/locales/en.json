@@ -262,8 +262,11 @@
     "password": "Password",
     "failed": "Sign-in failed",
     "hint": "Ask your tenant admin if you forgot your password.",
-    "demoTitle": "Demo accounts",
-    "demoHint": "Click a row to fill the form. Demo data is reset every day at 00:00."
+    "demoTitle": "Demo & experiment accounts",
+    "demoHint": "Pick a tenant, then click Use to fill the form. All data returns to its initial state every day at 00:00 WIB (UTC+7).",
+    "useAccount": "Use",
+    "copy": "Copy e-mail",
+    "copied": "Copied"
   },
   "projects": {
     "description": "One project = one protection point (e.g. pre-payment, post-payment, returns) with its own rules, models, graph and regulations.",

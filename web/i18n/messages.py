@@ -199,8 +199,11 @@ M = {
 "login.password": ("Kata sandi", "Password"),
 "login.failed": ("Gagal masuk", "Sign-in failed"),
 "login.hint": ("Hubungi admin tenant jika lupa kata sandi.", "Ask your tenant admin if you forgot your password."),
-"login.demoTitle": ("Akun demo", "Demo accounts"),
-"login.demoHint": ("Klik baris untuk mengisi form. Data demo di-reset setiap hari pukul 00.00.", "Click a row to fill the form. Demo data is reset every day at 00:00."),
+"login.demoTitle": ("Akun demo & eksperimen", "Demo & experiment accounts"),
+"login.demoHint": ("Pilih tenant, lalu klik Pakai untuk mengisi form. Semua data dikembalikan ke kondisi awal setiap hari pukul 00.00 WIB.", "Pick a tenant, then click Use to fill the form. All data returns to its initial state every day at 00:00 WIB (UTC+7)."),
+"login.useAccount": ("Pakai", "Use"),
+"login.copy": ("Salin email", "Copy e-mail"),
+"login.copied": ("Tersalin", "Copied"),
 # ---------------------------------------------------------------- projects
 "projects.description": ("Satu proyek = satu titik proteksi (mis. sebelum bayar, setelah bayar, retur) dengan rule, model, graph dan regulasinya sendiri.", "One project = one protection point (e.g. pre-payment, post-payment, returns) with its own rules, models, graph and regulations."),
 "projects.showArchived": ("Tampilkan arsip", "Show archived"),

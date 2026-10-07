@@ -118,7 +118,7 @@ def main() -> int:
             lambda: call("POST", f"/projects/{pid}/ml/graph-communities/recompute", analyst, body={}),
             lambda: blacklist_devices(analyst, pid, slug),
         ]
-        if i == 0:
+        if i == 0 and not os.environ.get("DEMO_ACTIVITY_SKIP_LLM"):
             steps.append(lambda: llm_reports(analyst, approver, pid, slug))
         for step in steps:
             try:

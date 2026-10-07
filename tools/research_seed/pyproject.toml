@@ -1,0 +1,30 @@
+[project]
+name = "research-seed"
+version = "0.1.0"
+description = "Research seeding mode: loads public fraud datasets (PaySim, Sparkov, SAML-D) into an evaluation install with the same history → train → score protocol as the demo"
+authors = [{ name = "Hendri Karisma", email = "situkangsayur@gmail.com" }]
+license = "AGPL-3.0-only"
+requires-python = ">=3.12"
+dependencies = ["fraud-simulator", "pandas>=2.2", "pyarrow>=17"]
+
+[tool.uv.sources]
+fraud-simulator = { path = "../simulator", editable = true }
+
+[dependency-groups]
+dev = ["ruff>=0.6", "mypy>=1.11", "pytest>=8.3", "pandas-stubs>=2.2"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# pandas-stubs types every itertuples() field as a broad scalar union; the loaders read typed CSV columns.
+module = "research_seed.loaders"
+disable_error_code = ["union-attr", "arg-type"]

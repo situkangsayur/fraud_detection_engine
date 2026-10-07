@@ -43,3 +43,6 @@ legacy/e2e/playwright-report/
 
 # research export virtualenv
 tools/research_export/.venv/
+
+# research seed virtualenv
+tools/research_seed/.venv/

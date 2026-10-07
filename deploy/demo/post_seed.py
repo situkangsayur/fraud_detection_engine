@@ -112,12 +112,30 @@ def train_and_activate(analyst: str, approver: str, pid: str, slug: str, kind: s
     log(f"{slug} {kind}: model {model_id} ({TRAINING[kind]}) active")
 
 
+def ensure_team(admin: str, tenant_id: str, project_ids: list[str]) -> None:
+    """Analyst and approver accounts with project membership. The demo tenant gets them from core-api's bootstrap;
+    research tenants created by the simulator only have a tenant admin."""
+    for role, (email, password) in (("analyst", ANALYST), ("approver", APPROVER)):
+        try:
+            login((email, password))
+            continue
+        except RuntimeError:
+            pass
+        user = call("POST", f"/tenants/{tenant_id}/users", admin, body={
+            "email": email, "full_name": f"{TENANT} {role}".title(), "password": password, "tenant_role": "member"})
+        for pid in project_ids:
+            call("POST", f"/projects/{pid}/members", admin, body={"user_id": user["id"], "role": role})
+        log(f"created {email} ({role}) in {len(project_ids)} project(s)")
+
+
 def main() -> int:
-    admin, analyst, approver = login(TENANT_ADMIN), login(ANALYST), login(APPROVER)
+    admin = login(TENANT_ADMIN)
     me = call("GET", "/me", admin)
     tenant_id = me["user"]["tenant_id"]
     projects = [(p["id"], p.get("slug", p["id"])) for p in me["projects"]]
     log(f"tenant {tenant_id}: {len(projects)} project(s)")
+    ensure_team(admin, tenant_id, [pid for pid, _ in projects])
+    analyst, approver = login(ANALYST), login(APPROVER)
     failures = 0
     try:
         regulations(admin, tenant_id, [pid for pid, _ in projects])
