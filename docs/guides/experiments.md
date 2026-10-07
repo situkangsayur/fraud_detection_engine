@@ -55,7 +55,11 @@ deploy/seed.sh master                  # demo + semua dataset publik, lalu snaps
 deploy/seed.sh restore                 # kembalikan master (yang dijalankan cron 00.00)
 deploy/demo/master.sh snapshot         # jadikan kondisi saat ini sebagai master baru
 deploy/demo/master.sh info             # lihat master aktif (tenant, jumlah event, commit git)
+deploy/demo/wipe-tenant.sh exp-paysim  # hapus SATU tenant eksperimen (tenant lain tidak tersentuh), lalu seed ulang
 ```
+
+Ground truth (`ground_truth.jsonl`) ditulis **sebelum** seeding dimulai. Kalau run terputus, truth tetap ada; bisa juga
+dibangkitkan ulang tanpa seeding: `uv run python -m research_seed --dataset sparkov --truth-only`.
 
 Opsi mode research (langsung lewat tool):
 
