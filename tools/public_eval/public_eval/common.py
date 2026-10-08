@@ -162,18 +162,26 @@ def setup_project(s: Sessions, slug: str, name: str, stage: str, template: str, 
             body["graph_config"] = graph_config
         p = gw.create_project(body)
     pid = str(p["id"])
+    set_setting(s, pid, "timeouts", EVAL_TIMEOUTS)
     for role, uid in (("analyst", s.user_ids["analyst"]), ("approver", s.user_ids["approver"])):
         gw.request("POST", f"/api/v1/projects/{pid}/members", json={"user_id": uid, "role": role})
     relogin(s.analyst)
     relogin(s.approver)
+    st = load_state()
+    keys = st.setdefault("api_keys", {})
     src = gw.find_source(pid, SOURCE_SLUG)
     if src is None:
         src = gw.create_source(pid, {"slug": SOURCE_SLUG, "name": "Public dataset loader", "kind": "webhook",
                                      "default_event_type": "transaction", "mode": "score",
                                      "description": "tools/public_eval"})
         key = str(src["api_key"])
+    elif pid in keys:
+        key = keys[pid]  # reuse: rotating while another process ingests invalidates its key
     else:
         key = gw.rotate_key(pid, str(src["id"]))
+    st = load_state()
+    st.setdefault("api_keys", {})[pid] = key
+    save_state(st)
     sid = str(src["id"])
     active = [m for m in gw.list_mappings(pid, sid) if m.get("status") == "active"]
     if not active or active[0].get("mapping") != mapping:
@@ -183,7 +191,13 @@ def setup_project(s: Sessions, slug: str, name: str, stage: str, template: str, 
 
 
 def set_setting(s: Sessions, pid: str, key: str, value: Any) -> None:
-    s.admin.request("PUT", f"/api/v1/projects/{pid}/settings/{key}", json={"value": value})
+    s.admin.request("PUT", f"/api/v1/projects/{pid}/settings/{key}", json=value)
+
+
+# Evaluation-only engine timeouts: the eval stack runs several projects in parallel plus model training, so the
+# production budgets (graph 100 ms, ML 200 ms, rules 300 ms) would drop engines (degraded mode) for load reasons
+# that have nothing to do with detection quality.
+EVAL_TIMEOUTS = {"ml_ms": 3000, "graph_ms": 2000, "rules_ms": 5000}
 
 
 # ---------------------------------------------------------------------------------------------- ingest
@@ -198,10 +212,12 @@ def ingest(s: Sessions, key: str, records: list[dict[str, Any]], mode: str, labe
             try:
                 res = gw.ingest_batch(SOURCE_SLUG, key, chunk, mode)
                 break
-            except ApiError as e:  # 408 under heavy parallel load: retry (re-sent duplicates are rejected)
-                if e.status != 408 or attempt == 7:
+            except ApiError as e:
+                # 408 under heavy parallel load (re-sent duplicates are rejected); 401 right after a key rotation
+                # (the key check is cached briefly) — retry both
+                if e.status not in (401, 408) or attempt == 7:
                     raise
-                time.sleep(5 * (attempt + 1))
+                time.sleep(15 * (attempt + 1) if e.status == 401 else 5 * (attempt + 1))
         n += len(chunk)
         acc += int(res.get("accepted", 0))
         rej += int(res.get("rejected", 0))
@@ -283,21 +299,38 @@ def _wait_model(gw: Gateway, pid: str, mid: str, timeout: int = 7200) -> dict[st
     raise TimeoutError(f"model {mid} still training after {timeout}s")
 
 
-def train_and_approve(s: Sessions, pid: str, since_days: int = 730) -> dict[str, Any]:
+def train_and_approve(s: Sessions, pid: str, since_days: int = 730, maturity_days: int = 14,
+                      retrain: bool = False) -> dict[str, Any]:
+    """Train (analyst), submit (analyst), approve (approver). Resumable: reuses an active or ready model."""
     out: dict[str, Any] = {}
-    for kind, body in (("supervised", {"since_days": since_days}),
-                       ("unsupervised", {"since_days": since_days})):
-        r = s.analyst.request("POST", f"/api/v1/projects/{pid}/ml/{kind}/train", json=body)
-        mid = str(r["model_id"])
-        m = _wait_model(s.analyst, pid, mid)
+    existing = Gateway.items(s.analyst.request("GET", f"/api/v1/projects/{pid}/ml/models", params={"page_size": 100}))
+    for kind in ("supervised", "unsupervised"):
+        mine = [m for m in existing if m.get("kind") == kind]
+        act = [m for m in mine if m.get("status") == "active"]
+        if act and not retrain:
+            out[kind] = {"model_id": str(act[0]["id"]), "status": "active", "metrics": act[0].get("metrics"), "reused": True}
+            continue
+        ready = [] if retrain else [m for m in mine if m.get("status") in ("ready", "pending_approval", "training")]
+        if ready:
+            mid = str(ready[0]["id"])
+        else:
+            body = {"since_days": since_days}
+            if kind == "supervised":
+                body["label_maturity_days"] = maturity_days
+            r = s.analyst.request("POST", f"/api/v1/projects/{pid}/ml/{kind}/train", json=body)
+            mid = str(r["model_id"])
+        m = _wait_model(s.analyst, pid, mid) if not ready or ready[0].get("status") == "training" else dict(ready[0])
         if m.get("status") == "failed":
             out[kind] = {"model_id": mid, "status": "failed", "error": m.get("error")}
             log(f"  {kind} training failed: {str(m.get('error'))[:300]}")
             continue
-        s.analyst.request("POST", f"/api/v1/projects/{pid}/ml/models/{mid}/submit")
-        s.approver.request("POST", f"/api/v1/projects/{pid}/ml/models/{mid}/approve")
-        out[kind] = {"model_id": mid, "status": "active", "metrics": m.get("metrics")}
-        log(f"  {kind} model active: {json.dumps(m.get('metrics'))[:300]}")
+        if m.get("status") == "ready":
+            s.analyst.request("POST", f"/api/v1/projects/{pid}/ml/models/{mid}/submit", json={})
+        s.approver.request("POST", f"/api/v1/projects/{pid}/ml/models/{mid}/approve", json={})
+        m = s.analyst.request("GET", f"/api/v1/projects/{pid}/ml/models/{mid}")
+        out[kind] = {"model_id": mid, "status": m.get("status"), "metrics": m.get("metrics"),
+                     "label_maturity_days": maturity_days if kind == "supervised" else None}
+        log(f"  {kind} model {m.get('status')}: {json.dumps(m.get('metrics'))[:300]}")
     return out
 
 

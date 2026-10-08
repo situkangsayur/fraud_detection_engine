@@ -62,6 +62,14 @@ def metrics(pid: str, truth: dict[str, dict[str, Any]], fpr_target: float = 0.05
         ev = np.array([float(v) if v is not None else 0.0 for v in vals])
         out["auc"][eng] = _auc(y, ev)
         out.setdefault("engine_nonzero_share", {})[eng] = float(np.mean(ev > 0))
+    # the same headline metrics on events scored with all engines available (not degraded)
+    nd = np.array([not r["degraded"] for r in rows])
+    if nd.any():
+        yn, sn, fn = y[nd], s[nd], flagged[nd]
+        tpn, fpn = int((fn & (yn == 1)).sum()), int((fn & (yn == 0)).sum())
+        out["non_degraded"] = {"events": int(nd.sum()), "fraud": int(yn.sum()), "auc_final": _auc(yn, sn),
+                               "recall": tpn / max(1, int(yn.sum())), "precision": tpn / max(1, tpn + fpn),
+                               "fpr": fpn / max(1, int((yn == 0).sum()))}
     # threshold for FPR <= target
     legit = np.sort(s[y == 0])
     if len(legit):

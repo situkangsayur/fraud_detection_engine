@@ -40,7 +40,7 @@ def slug(ds: str, config: str, seed: int) -> str:
     return f"{ds}-{config}-s{seed}-{TAG}"
 
 
-def run(ds: str, seed: int, config: str, history_share: float) -> dict[str, Any]:
+def run(ds: str, seed: int, config: str, history_share: float, retrain: bool = False) -> dict[str, Any]:
     p = prepared(ds, seed)
     s = common.sessions()
     template = p.stage if config == "tpl" else "none"
@@ -53,7 +53,13 @@ def run(ds: str, seed: int, config: str, history_share: float) -> dict[str, Any]
         from public_eval.rules_lit import ruleset_for
 
         rs = ruleset_for(ds)
-        out["ruleset"] = common.load_ruleset(s, pid, rs)
+        existing = [r for r in common.Gateway.items(s.admin.request("GET", f"/api/v1/projects/{pid}/rulesets",
+                    params={"page_size": 200})) if r.get("code") == "RS-LIT"]
+        if existing:
+            codes = [r[0] for r in common.query("SELECT code FROM rules.rules WHERE project_id = %s AND code LIKE 'RL-LIT-%%'", (pid,))]
+            out["ruleset"] = {"ruleset_id": str(existing[0]["id"]), "rules": sorted(codes), "reused": True}
+        else:
+            out["ruleset"] = common.load_ruleset(s, pid, rs)
         log(f"  LIT ruleset loaded: {out['ruleset']['rules']}")
     recs = p.records
     # chronological split by event count (time-share splits break on skewed timelines, e.g. AMLworld's tail)
@@ -64,11 +70,29 @@ def run(ds: str, seed: int, config: str, history_share: float) -> dict[str, Any]
                     "history_fraud": sum(p.truth[r["ext_id"]]["is_fraud"] for r in hist),
                     "scored_fraud": sum(p.truth[r["ext_id"]]["is_fraud"] for r in test)}
     log(f"  split {out['split']}")
-    out["ingest_history"] = common.ingest(s, key, hist, "load_only", ds)
-    out["labels"] = common.post_labels(s, pid, hist, p.truth, seed, "ts", customer_key=p.customer_key)
+    n_events = common.query("SELECT count(*) FROM core.events WHERE project_id = %s", (pid,))[0][0]
+    if n_events >= len(hist):
+        out["ingest_history"] = {"skipped": f"{n_events} events already present"}
+    else:
+        have = set(common.event_ids(pid))
+        out["ingest_history"] = common.ingest(s, key, [r for r in hist if r["ext_id"] not in have], "load_only", ds)
+    n_labels = common.query("SELECT count(*) FROM core.labels WHERE project_id = %s", (pid,))[0][0]
+    if n_labels:
+        out["labels"] = {"skipped": f"{n_labels} labels already present"}
+    else:
+        out["labels"] = common.post_labels(s, pid, hist, p.truth, seed, "ts", customer_key=p.customer_key)
     log(f"  labels {out['labels']}")
-    out["models"] = common.train_and_approve(s, pid)
-    out["ingest_scored"] = common.ingest(s, key, test, "score", ds)
+    # label maturity: unlabelled events count as legit once older than (age of the last history event + label
+    # delay), capped at the platform default of 14 days — short datasets (ULB 2 days, AMLworld 18 days) need it
+    from datetime import datetime, timezone
+    newest = datetime.fromisoformat(hist[-1]["ts"].replace("Z", "+00:00"))
+    oldest = datetime.fromisoformat(hist[0]["ts"].replace("Z", "+00:00"))
+    age = (datetime.now(timezone.utc) - newest).total_seconds() / 86400
+    delay = min(7.0, 0.2 * (newest - oldest).total_seconds() / 86400)
+    maturity = max(1, min(14, int(age + delay + 0.999)))
+    out["models"] = common.train_and_approve(s, pid, maturity_days=maturity, retrain=retrain)
+    have = set(common.event_ids(pid))
+    out["ingest_scored"] = common.ingest(s, key, [r for r in test if r["ext_id"] not in have], "score", ds)
     from public_eval.evaluate import metrics
 
     out["metrics"] = metrics(pid, p.truth)
@@ -86,12 +110,13 @@ def main() -> None:
     ap.add_argument("--config", default="tpl", choices=["tpl", "lit", "ml"])
     ap.add_argument("--history-share", type=float, default=0.7)
     ap.add_argument("--refresh", action="store_true")
+    ap.add_argument("--retrain", action="store_true", help="train new models even if active ones exist")
     a = ap.parse_args()
     if a.cmd == "prepare":
         p = prepared(a.dataset, a.seed, refresh=a.refresh)
         log(json.dumps(p.meta, default=str))
     elif a.cmd == "run":
-        run(a.dataset, a.seed, a.config, a.history_share)
+        run(a.dataset, a.seed, a.config, a.history_share, retrain=a.retrain)
     else:
         from public_eval.evaluate import dumps, metrics
 

@@ -39,9 +39,13 @@ label maturity are relative to "now".
 2. First 70 % of events (chronological, by count) ingested `load_only`; delayed partial labels posted
    (60 % of fraud older than min(7 days, 20 % of the history span), 3 % of legit; customers of labelled fraud marked
    fraud with p = 0.7 to feed graph proximity).
+   Supervised label maturity = age of the last history event + label delay, capped at 14 days (short datasets
+   such as ULB and AMLworld would otherwise train on labelled rows only).
 3. Supervised `mlp_backprop` and unsupervised `isolation_forest` + `hdbscan` trained by the analyst, approved by the
    approver (maker–checker).
-4. Remaining 30 % ingested with `mode=score`.
+4. Remaining 30 % ingested with `mode=score`. Eval projects get engine timeouts ML 3 s / graph 2 s / rules 5 s
+   (`common.EVAL_TIMEOUTS`) because several projects and model training share one host; degraded decisions are
+   counted (`degraded_rate`) and metrics on non-degraded events are reported separately.
 5. Metrics from `core.decisions` ⨝ truth: recall / precision / FPR at default thresholds (review ≥ 50, decline ≥ 80),
    decline precision, AUC of the fused score and of each engine score, recall per typology / laundering pattern,
    the review threshold for FPR ≤ 5 %, and per-rule hit counts.
@@ -64,6 +68,9 @@ python -m public_eval run <dataset> --seed 1 --config tpl|lit|ml
 python -m public_eval evaluate <dataset> --seed 1 --config tpl
 python -m public_eval.aggregate          # → results-public.json + evaluation-public-tables.md in $EVAL_WORK_DIR
 ```
+
+Runs are resumable (existing events, labels, models and the LIT ruleset are reused). `~/fraud-eval/supervise.sh`
+(not in the repo) restarted crashed runs with at most 6 in parallel. Results: `docs/technical/evaluation-public.md`.
 
 Requirements: Python 3.12 with `pandas pyarrow httpx scikit-learn numpy psycopg2-binary pycountry`.
 Environment: `EVAL_ENV_FILE` (default `~/fraud-eval/.env.eval`), `EVAL_WORK_DIR`, `EVAL_RAW_DIR`.
