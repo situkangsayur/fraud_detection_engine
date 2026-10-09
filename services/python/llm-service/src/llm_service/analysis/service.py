@@ -56,6 +56,31 @@ def _items(data: Any) -> list[Any]:
     return list(data or [])
 
 
+def _slim_clusters(data: Any, limit: int = 12) -> list[dict[str, Any]]:
+    """Cluster summaries for prompts: the raw payload (profiles, all distinguishing features) was ~15k tokens."""
+    items = [c for c in _items(data) if isinstance(c, dict)]
+    items.sort(key=lambda c: (-(c.get("fraud_rate") or 0), -(c.get("size") or 0)))
+    out = []
+    for c in items[:limit]:
+        top = [
+            {"feature": f.get("feature"), "smd": f.get("smd")}
+            for f in (c.get("top_features") or [])[:3]
+            if isinstance(f, dict)
+        ]
+        out.append(
+            {k: c.get(k) for k in ("cluster_id", "size", "fraud_rate", "labeled_count", "label")}
+            | {"top_features": top}
+        )
+    return out
+
+
+def _slim_components(data: Any, limit: int) -> list[dict[str, Any]]:
+    """Graph component summaries for prompts: member id samples are noise for the model."""
+    items = [c for c in _items(data) if isinstance(c, dict)]
+    items.sort(key=lambda c: (-(c.get("fraud_count") or 0), -(c.get("size") or 0)))
+    return [{k: c.get(k) for k in ("size", "fraud_count", "fraud_rate")} for c in items[:limit]]
+
+
 def _slim_rule(r: dict[str, Any]) -> dict[str, Any]:
     keep = (
         "id",
@@ -182,6 +207,12 @@ class AnalysisService:
             return []
 
     async def _llm(self, pctx: ProjectContext, prompt: str, schema: dict[str, Any]) -> dict[str, Any]:
+        # ~3 characters per token for JSON-heavy prompts. Ollama silently truncates a prompt beyond the context
+        # window from the start (i.e. the instructions), so make the size visible.
+        approx_tokens = len(prompt) // 3
+        log.info("analysis_prompt", approx_tokens=approx_tokens, num_ctx=self._s.ollama_num_ctx)
+        if approx_tokens > self._s.ollama_num_ctx - 1024:
+            log.warning("analysis_prompt_exceeds_context", approx_tokens=approx_tokens, num_ctx=self._s.ollama_num_ctx)
         return await structured_chat(
             self._ollama, [{"role": "user", "content": prompt}], schema, model=pctx.model, temperature=pctx.temperature
         )
@@ -301,8 +332,8 @@ class AnalysisService:
             since_days=since,
             overview=overview,
             typologies=typologies,
-            clusters=clusters,
-            components=_items(components)[:30],
+            clusters=_slim_clusters(clusters),
+            components=_slim_components(components, 15),
             communities=_items(communities)[:30],
             drift=drift,
         )
@@ -401,9 +432,9 @@ class AnalysisService:
             performance=perf,
             overview=overview,
             typologies=typologies,
-            clusters=clusters,
+            clusters=_slim_clusters(clusters),
             drift=drift,
-            components=_items(components)[:20],
+            components=_slim_components(components, 15),
             field_paths=field_paths,
             documents=[d.as_document() for d in docs],
         )

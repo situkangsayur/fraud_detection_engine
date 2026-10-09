@@ -97,7 +97,13 @@ class OllamaClient:
         await self._http.aclose()
 
     def _options(self, temperature: float) -> dict[str, Any]:
-        return {"temperature": temperature, "num_ctx": self._settings.ollama_num_ctx}
+        # num_predict bounds every generation: with a JSON-schema grammar some models keep emitting whitespace
+        # forever, which otherwise only ends at the HTTP timeout
+        return {
+            "temperature": temperature,
+            "num_ctx": self._settings.ollama_num_ctx,
+            "num_predict": self._settings.ollama_num_predict,
+        }
 
     def _body(self, messages: list[Message], model: str | None, temperature: float, *, stream: bool) -> dict[str, Any]:
         name = model or self.chat_model

@@ -2,6 +2,10 @@
 
 The rule envelope schema is intentionally shallow for ``definition`` (recursive condition trees are hard for
 grammar-constrained decoding); the rule-service validator is the authority and drives the repair loop.
+
+Open objects must say ``additionalProperties: true``: Ollama turns a schema into a grammar, and an object that lists
+only some properties otherwise admits exactly those keys (``definition`` could only ever be ``{"kind": …}``, so no
+recommended rule could pass validation).
 """
 
 from __future__ import annotations
@@ -38,6 +42,7 @@ RULE_ENVELOPE_SCHEMA: dict[str, Any] = {
             "type": "object",
             "properties": {"kind": {"type": "string", "enum": RULE_KINDS}},
             "required": ["kind"],
+            "additionalProperties": True,
         },
     },
     "required": [
@@ -65,7 +70,7 @@ RECOMMENDATION_SCHEMA: dict[str, Any] = {
         "proposal_type": {"type": "string", "enum": ["new_rule", "modify_rule", "retire_rule"]},
         "target_rule_code": {"type": ["string", "null"]},
         "rationale": {"type": "string"},
-        "evidence": {"type": "object"},
+        "evidence": {"type": "object", "additionalProperties": True},
         "citations": {"type": "array", "items": CITATION_SCHEMA},
         "rule": {"anyOf": [RULE_ENVELOPE_SCHEMA, {"type": "null"}]},
     },

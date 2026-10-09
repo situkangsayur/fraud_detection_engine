@@ -21,3 +21,10 @@ Definitions:
 - reference: `{"kind":"reference","list":"card_blacklist","key":<operand>,"mode":"exists|not_exists|attribute","attribute_condition":<condition>}`
 - graph: `{"kind":"graph","metric":"distance_to_fraud|fraud_neighbors|shared_entity_count|component_size|degree|community_fraud_rate","link_kinds":["phone","card","device","address","email","bank_account","ref_transaction"],"include_similar":true,"max_depth":3,"compare":{"op":"lte","right":{"type":"const","value":2}}}`
 Only use field paths that exist in the project field catalog you were given.
+
+Complete, validator-approved examples (copy this structure; every `definition` needs the keys shown for its kind —
+`simple` needs `when`, `graph` needs `metric` + `compare`; prefer these two kinds unless the pattern needs history):
+```json
+{"code":"RL-LLM-EX1","name":"Shared IP across many customers","description":"One IP used by many customers in 24h, with a high ML score","kind":"simple","typologies":["account_takeover"],"event_types":["transaction"],"risk_score":40,"trapped_score":0,"action":"score","on_trapped":"ignore","missing_as_no_match":true,"definition":{"kind":"simple","scoring":"binary","when":{"all":[{"left":{"type":"field","path":"features.ip_distinct_customers_24h"},"op":"gte","right":{"type":"const","value":3}},{"left":{"type":"field","path":"ml.fraud_probability"},"op":"gte","right":{"type":"const","value":0.5}}]}}}
+{"code":"RL-LLM-EX2","name":"Close to a confirmed fraudster","description":"Customer within 2 hops of a confirmed fraud customer via device, card or phone","kind":"graph","typologies":["money_mule"],"event_types":["transaction"],"risk_score":50,"trapped_score":0,"action":"force_review","on_trapped":"ignore","missing_as_no_match":true,"definition":{"kind":"graph","metric":"distance_to_fraud","link_kinds":["device","card","phone"],"include_similar":false,"max_depth":3,"compare":{"op":"lte","right":{"type":"const","value":2}}}}
+```

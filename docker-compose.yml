@@ -232,6 +232,8 @@ services:
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-flash-latest}
       OLLAMA_THINK: ${OLLAMA_THINK:-}   # false = skip reasoning on thinking models (qwen3, deepseek-r1)
       OLLAMA_TIMEOUT_S: ${OLLAMA_TIMEOUT_S:-180}   # raise (e.g. 900) when the model runs on CPU
+      OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-8192}       # context window (prompt + answer); analysis prompts need ~16k
+      OLLAMA_NUM_PREDICT: ${OLLAMA_NUM_PREDICT:-4096}   # max answer tokens (stops runaway generations)
       OPENSEARCH_URL: http://opensearch:9200
       REGULATION_DIR: /regulations
     volumes:

@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     ollama_embed_model: str = "bge-m3"
     ollama_timeout_s: float = 180.0
     ollama_num_ctx: int = 8192
+    ollama_num_predict: int = 4096  # max tokens per generation (guards against runaway structured output)
     # Reasoning ("thinking") models such as qwen3/deepseek-r1: None = leave the server default, False = ask the
     # server to skip it, True = keep it. <think> blocks are always stripped from returned content.
     ollama_think: bool | None = None
