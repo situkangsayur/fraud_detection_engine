@@ -1,0 +1,22 @@
+{#- prompt: regulation_impact  version: 1 -#}
+{% include "system_base.md.j2" %}
+
+## Task: regulation impact analysis
+Regulation {{ regulation.code }} v{{ regulation.version }} ({{ regulation.title }}) {% if changes %}changed the articles listed in `<changes>`{% else %}was added to the project{% endif %}.
+1. Identify obligations that affect fraud controls (thresholds, monitoring, blacklists, reporting, customer protection).
+2. Map each obligation to existing rules in `<rules>` (by code) → `covered`, `partially_covered`, `gap`, or `conflict`.
+3. For every gap/conflict propose at most {{ max_rules }} concrete rule changes (new_rule / modify_rule / retire_rule) with full rule envelopes following the Rule DSL, citing the article.
+
+{% include "rule_dsl_reference.md" %}
+
+<field_catalog>{{ field_paths | tojson }}</field_catalog>
+<rules>{{ rules | tojson }}</rules>
+{% if changes -%}
+<changes>{{ changes | tojson }}</changes>
+{%- endif %}
+{% for d in documents -%}
+<document code="{{ d.code }}" section="{{ d.section }}">
+{{ d.text }}
+</document>
+{% endfor %}
+Return JSON matching the provided schema.

@@ -1,0 +1,22 @@
+{
+  "kind": "graph",
+  "metric": "distance_to_fraud",
+  "link_kinds": [
+    "phone",
+    "card",
+    "device",
+    "address",
+    "email",
+    "bank_account",
+    "ref_transaction"
+  ],
+  "include_similar": true,
+  "max_depth": 3,
+  "compare": {
+    "op": "lte",
+    "right": {
+      "type": "const",
+      "value": 2
+    }
+  }
+}

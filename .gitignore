@@ -1,19 +1,48 @@
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-*.pyc
-.poetry/
+# --- secrets / local config
 .env
 .env.*
-.cache/
+!.env.example
+
+# --- Rust
+target/
+
+# --- Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
 htmlcov/
+
+# --- Node / Nuxt
+node_modules/
+.nuxt/
+.output/
+.data/
+/web/dist/
+**/coverage/
+
+# --- runtime data & artifacts
+/data/
+dump/
+*.log
+/uploads/
+/models/
+
+# --- editors / OS
 .vscode/
 .idea/
-*.log
-dump/
-data/
-e2e/node_modules/
-e2e/test-results/
-e2e/playwright-report/
+.DS_Store
+
+# --- legacy e2e
+legacy/e2e/node_modules/
+legacy/e2e/test-results/
+legacy/e2e/playwright-report/
+
+# research export virtualenv
+tools/research_export/.venv/
+
+# research seed virtualenv
+tools/research_seed/.venv/

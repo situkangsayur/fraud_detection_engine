@@ -1,0 +1,24 @@
+{#- prompt: recommend_rules  version: 1 -#}
+{% include "system_base.md.j2" %}
+
+## Task: recommend new or changed rules
+Focus: {{ focus or "all typologies" }}. Window: last {{ since_days }} days. Propose at most {{ max_rules }} rules.
+Look for: anomaly clusters with high fraud rate but low rule coverage, drifted features, typologies with rising labelled fraud, graph components linked to fraud, and regulatory obligations (documents) not covered by current rules.
+Each recommendation must include: a full rule envelope (Rule DSL), the evidence (numbers from the data below), and citations when a regulation motivates it. Prefer simple, explainable rules; use velocity/composite/graph kinds when the pattern is behavioural or relational. Use unique codes prefixed `RL-LLM-`. Do not duplicate existing rules (see `<rules>`).
+
+{% include "rule_dsl_reference.md" %}
+
+<field_catalog>{{ field_paths | tojson }}</field_catalog>
+<rules>{{ rules | tojson }}</rules>
+<rules_performance>{{ performance | tojson }}</rules_performance>
+<analytics_overview>{{ overview | tojson }}</analytics_overview>
+<typologies>{{ typologies | tojson }}</typologies>
+<anomaly_clusters>{{ clusters | tojson }}</anomaly_clusters>
+<feature_drift>{{ drift | tojson }}</feature_drift>
+<graph_components>{{ components | tojson }}</graph_components>
+{% for d in documents -%}
+<document code="{{ d.code }}" section="{{ d.section }}">
+{{ d.text }}
+</document>
+{% endfor %}
+Return JSON matching the provided schema.

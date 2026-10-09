@@ -1,0 +1,22 @@
+[project]
+name = "research-export"
+version = "0.1.0"
+description = "Exports a research dataset (events, engine scores, rule hits, features, labels, ground truth, metrics) from a Fraud Detection Platform install"
+authors = [{ name = "Hendri Karisma", email = "situkangsayur@gmail.com" }]
+license = "AGPL-3.0-only"
+requires-python = ">=3.12"
+dependencies = ["psycopg[binary]>=3.2", "pandas>=2.2", "pyarrow>=17", "numpy>=1.26", "scikit-learn>=1.5", "tabulate>=0.9"]
+
+[dependency-groups]
+dev = ["ruff>=0.6", "mypy>=1.11", "pytest>=8.3", "pandas-stubs>=2.2"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true

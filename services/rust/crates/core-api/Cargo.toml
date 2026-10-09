@@ -1,0 +1,58 @@
+[package]
+name = "core-api"
+description = "Core API: tenants, projects, identity, data sources & mapping, scoring orchestration, cases, labels, analytics, audit."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "core-api"
+path = "src/main.rs"
+
+[lib]
+name = "core_api"
+path = "src/lib.rs"
+
+[dependencies]
+platform = { workspace = true }
+contracts = { workspace = true }
+
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+reqwest = { workspace = true }
+futures = { workspace = true }
+async-trait = { workspace = true }
+sqlx = { workspace = true, features = ["macros"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+chrono-tz = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+clap = { workspace = true }
+tracing = { workspace = true }
+metrics = { workspace = true }
+argon2 = { workspace = true }
+sha2 = { workspace = true }
+hex = { workspace = true }
+rand = { workspace = true }
+base64 = { workspace = true }
+utoipa = { workspace = true }
+utoipa-scalar = { workspace = true }
+regex = { workspace = true }
+moka = { workspace = true }
+once_cell = { workspace = true }
+
+[dev-dependencies]
+pretty_assertions = { workspace = true }
+wiremock = "0.6"
+http-body-util = "0.1"
+tower = { workspace = true }
+
+[lints]
+workspace = true

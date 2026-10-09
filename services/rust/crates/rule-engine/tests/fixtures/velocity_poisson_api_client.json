@@ -1,0 +1,27 @@
+{
+  "kind": "velocity",
+  "history_event_types": [
+    "transaction",
+    "login"
+  ],
+  "group_by": [
+    "api_client_id"
+  ],
+  "window": {
+    "duration": "24h"
+  },
+  "aggregate": {
+    "fn": "count"
+  },
+  "statistic": {
+    "fn": "poisson_tail",
+    "bucket": "5m"
+  },
+  "compare": {
+    "op": "lt",
+    "right": {
+      "type": "const",
+      "value": 0.001
+    }
+  }
+}

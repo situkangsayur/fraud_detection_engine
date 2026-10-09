@@ -1,0 +1,25 @@
+{
+  "kind": "velocity",
+  "group_by": [
+    "merchant_id"
+  ],
+  "window": {
+    "duration": "14d"
+  },
+  "aggregate": {
+    "fn": "sum",
+    "field": "amount"
+  },
+  "statistic": {
+    "fn": "linear_trend",
+    "bucket": "1d",
+    "output": "residual_z"
+  },
+  "compare": {
+    "op": "gt",
+    "right": {
+      "type": "const",
+      "value": 3
+    }
+  }
+}

@@ -1,0 +1,385 @@
+{
+  "stage": "account_security",
+  "description": "Login and account changes: credential stuffing, ATO, compromised API clients.",
+  "reference_lists": [
+    {
+      "name": "device_blacklist",
+      "description": "Devices used in confirmed fraud",
+      "list_type": "blacklist",
+      "key_kind": "device_id",
+      "columns": [],
+      "entries": []
+    }
+  ],
+  "rules": [
+    {
+      "code": "RL-ACC-FAILED-LOGINS",
+      "name": "Repeated failed logins",
+      "description": ">= 5 failed logins for the customer in 1 hour",
+      "kind": "composite",
+      "typologies": [
+        "account_takeover"
+      ],
+      "event_types": [
+        "login"
+      ],
+      "risk_score": 50,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "composite",
+        "history_filter": {
+          "all": [
+            {
+              "left": {
+                "type": "hist",
+                "path": "login_success"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": false
+              }
+            }
+          ]
+        },
+        "velocity": {
+          "history_event_types": [
+            "login"
+          ],
+          "group_by": [
+            "customer_id"
+          ],
+          "window": {
+            "duration": "1h"
+          },
+          "aggregate": {
+            "fn": "count"
+          },
+          "include_current": true,
+          "compare": {
+            "op": "gte",
+            "right": {
+              "type": "const",
+              "value": 5
+            }
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-ACC-NEW-DEVICE-CRED",
+      "name": "Credential change from new device",
+      "description": "Password/email/phone/2FA change from a never-seen device",
+      "kind": "simple",
+      "typologies": [
+        "account_takeover"
+      ],
+      "event_types": [
+        "account_change"
+      ],
+      "risk_score": 60,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "field",
+                "path": "features.is_new_device"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": 1
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "event.account_change_type"
+              },
+              "op": "in",
+              "right": {
+                "type": "const",
+                "value": [
+                  "password",
+                  "email",
+                  "phone",
+                  "2fa"
+                ]
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-ACC-IP-FANOUT",
+      "name": "Credential stuffing from one IP",
+      "description": ">= 10 distinct customers logging in from one IP in 1 hour",
+      "kind": "velocity",
+      "typologies": [
+        "account_takeover"
+      ],
+      "event_types": [
+        "login"
+      ],
+      "risk_score": 45,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "velocity",
+        "history_event_types": [
+          "login"
+        ],
+        "group_by": [
+          "ip_address"
+        ],
+        "window": {
+          "duration": "1h"
+        },
+        "aggregate": {
+          "fn": "distinct_count",
+          "field": "customer_id"
+        },
+        "include_current": true,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 10
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-ACC-API-BURST",
+      "name": "API client burst",
+      "description": "Current 5-minute volume of the API client is improbable (Poisson p < 0.1%)",
+      "kind": "velocity",
+      "typologies": [
+        "system_breach"
+      ],
+      "event_types": [
+        "transaction",
+        "login"
+      ],
+      "risk_score": 60,
+      "trapped_score": 0,
+      "action": "force_review",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "velocity",
+        "history_event_types": [
+          "transaction",
+          "login"
+        ],
+        "group_by": [
+          "api_client_id"
+        ],
+        "window": {
+          "duration": "24h"
+        },
+        "aggregate": {
+          "fn": "count"
+        },
+        "statistic": {
+          "fn": "poisson_tail",
+          "bucket": "5m"
+        },
+        "compare": {
+          "op": "lt",
+          "right": {
+            "type": "const",
+            "value": 0.001
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-ACC-API-FANOUT",
+      "name": "API client touching many accounts",
+      "description": "> 50 distinct customers via one API client in 5 minutes",
+      "kind": "simple",
+      "typologies": [
+        "system_breach"
+      ],
+      "event_types": [
+        "transaction",
+        "login"
+      ],
+      "risk_score": 70,
+      "trapped_score": 0,
+      "action": "force_review",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "left": {
+            "type": "field",
+            "path": "features.api_client_distinct_customers_5m"
+          },
+          "op": "gt",
+          "right": {
+            "type": "const",
+            "value": 50
+          }
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-ACC-NIGHT-BENEFICIARY",
+      "name": "Night-time beneficiary change",
+      "description": "Beneficiary change between 00:00-05:59",
+      "kind": "simple",
+      "typologies": [
+        "bank_account_takeover"
+      ],
+      "event_types": [
+        "account_change"
+      ],
+      "risk_score": 35,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "field",
+                "path": "features.is_night"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": 1
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "event.account_change_type"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": "beneficiary"
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-ACC-BL-DEVICE",
+      "name": "Blacklisted device",
+      "description": "Device is on the device blacklist",
+      "kind": "reference",
+      "typologies": [
+        "account_takeover"
+      ],
+      "event_types": [
+        "login",
+        "account_change"
+      ],
+      "risk_score": 100,
+      "trapped_score": 0,
+      "action": "force_decline",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "device_blacklist",
+        "key": {
+          "type": "field",
+          "path": "event.device_id"
+        },
+        "mode": "exists"
+      }
+    }
+  ],
+  "rulesets": [
+    {
+      "code": "RS-ACC-LOGIN",
+      "name": "Login protection",
+      "description": "Credential stuffing, brute force, API abuse",
+      "event_types": [
+        "login",
+        "transaction"
+      ],
+      "typologies": [
+        "account_takeover",
+        "system_breach"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-ACC-FAILED-LOGINS",
+          "weight": 1
+        },
+        {
+          "rule": "RL-ACC-IP-FANOUT",
+          "weight": 1
+        },
+        {
+          "rule": "RL-ACC-API-BURST",
+          "weight": 1
+        },
+        {
+          "rule": "RL-ACC-API-FANOUT",
+          "weight": 1
+        },
+        {
+          "rule": "RL-ACC-BL-DEVICE",
+          "weight": 1
+        }
+      ]
+    },
+    {
+      "code": "RS-ACC-CHANGES",
+      "name": "Account changes",
+      "description": "Sensitive profile changes",
+      "event_types": [
+        "account_change"
+      ],
+      "typologies": [
+        "account_takeover",
+        "bank_account_takeover"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-ACC-NEW-DEVICE-CRED",
+          "weight": 1
+        },
+        {
+          "rule": "RL-ACC-NIGHT-BENEFICIARY",
+          "weight": 1
+        },
+        {
+          "rule": "RL-ACC-BL-DEVICE",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

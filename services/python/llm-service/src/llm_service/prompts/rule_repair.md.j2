@@ -1,0 +1,8 @@
+{#- prompt: rule_repair  version: 1 -#}
+The rule envelope you produced was rejected by the rule validator. Fix ONLY the reported problems, keep the intent, and return the corrected full envelope as JSON matching the schema.
+
+<rule>{{ rule | tojson }}</rule>
+<validation_errors>{{ errors | tojson }}</validation_errors>
+<allowed_field_paths>{{ field_paths | tojson }}</allowed_field_paths>
+
+{% include "rule_dsl_reference.md" %}

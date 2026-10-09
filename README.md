@@ -1,189 +1,133 @@
-# 🛡️ Fraud Detection Engine + LLM Assistant – Full Documentation
+# Fraud Detection Platform
+
+Platform deteksi fraud **multi-tenant** dengan lima engine yang saling melengkapi: **Rule engine**, **Supervised ML**,
+**Unsupervised ML (anomaly & clustering)**, **Graph**, dan **LLM assistant** untuk regulasi. Dibangun dengan Rust,
+Python, PostgreSQL, OpenSearch, Ollama, dan Nuxt; dijalankan dengan satu `docker compose up`.
+
+> Dokumen ini gambaran besar. Semua detail ada di [`docs/`](docs/).
 
 ---
 
-## 📌 Overview
+## Fitur utama
 
-Sistem ini adalah platform modular berbasis FastAPI, MongoDB, Streamlit, dan LLM (GPT/Gemini/Ollama) untuk:
+| Engine | Kemampuan |
+|---|---|
+| **Rule engine** (Rust) | 5 jenis rule: *simple* (bandingkan field dengan nilai **atau field lain**), *velocity* (agregasi + group by + window, termasuk statistik: z-score, gaussian, regresi linear, poisson), *composite* (velocity dengan filter histori), *reference* (white/black-list, dibuat saat runtime), *graph*. Operand bisa berupa formula seperti `F(x,y,z) = 2x + 2^y / z^2`. Hasil tiga nilai: match / no_match / **trapped**. Ruleset berbobot, versioning, shadow mode, backtest. |
+| **Supervised ML** (Python) | Plugin algoritma yang bisa ditambah tanpa rebuild. Bawaan: MLP backpropagation (PyTorch), logistic regression, gradient boosting, random forest. Label maturity, split berbasis waktu, penjelasan per prediksi. |
+| **Unsupervised ML** (Python) | Anomaly (isolation forest, LOF, autoencoder) + clustering (HDBSCAN, k-means, DBSCAN, GMM), profil cluster, proyeksi 2-D, komunitas graph (Louvain). |
+| **Graph** (Rust) | Relasi antar pelanggan lewat email, HP, device, IP, kartu, rekening, alamat, ref transaksi, termasuk yang **mirip** (HP beda 1 digit, alamat mirip). Jarak ke fraudster, komponen, proteksi supernode. |
+| **LLM assistant** (Python + Ollama) | Library regulasi/kebijakan (OJK, BI, SOP), RAG hybrid di OpenSearch, deteksi perubahan regulasi per pasal, analisis relevansi rule, kondisi fraud terkini, dan **usulan** rule (tidak pernah aktif otomatis). |
 
-- 🚦 Menilai risiko transaksi secara otomatis
-- ⚙️ Mengelola rule engine berbasis policy, standard, dan velocity rule
-- 🧠 Mengintegrasikan LLM untuk membaca regulasi OJK/BI dan menyarankan struktur rule/policy
-- 📊 Melakukan analisis performa fraud rule/policy
-- 💬 Menyediakan antarmuka Streamlit untuk eksplorasi dan interaksi AI
+Kemampuan platform:
+
+* **Multi-tenant, multi-project:** satu perusahaan bisa punya banyak project (mis. *pre-payment*, *post-payment*,
+  *returns*, *promo*), masing-masing dengan rule, model, graph, dan regulasinya sendiri. Isolasi data dijamin oleh
+  PostgreSQL Row-Level Security.
+* **Data sendiri tanpa ubah kode:** hubungkan file, database, atau webhook dengan struktur apa pun. Sistem
+  menyarankan mapping (termasuk nama kolom berbahasa Indonesia), dan semua kolom langsung bisa dipakai di rule dan
+  model.
+* **Governance:** maker–checker (empat mata), audit log yang tidak bisa diubah, alasan keputusan yang bisa
+  dijelaskan, dan PII (kartu/rekening) di-hash.
+* **Tipologi fraud:** carding, account takeover, pengambilalihan rekening, sistem dibobol, abuse promo/voucher/cashback,
+  abuse retur, money mule.
+
+## Tampilan
+
+Demo publik: **https://fds.hendrikarisma.my.id** (akun tercantum di halaman login; data kembali ke kondisi awal setiap 00.00 WIB).
+
+| | |
+|---|---|
+| ![Login: akun demo & eksperimen per tenant](docs/images/screenshots/01-login.png) | ![Dashboard project: keputusan, distribusi skor, skor per engine, drift](docs/images/screenshots/03-dashboard.png) |
+| Login: akun demo & eksperimen per tenant | Dashboard project: keputusan, distribusi skor, skor per engine, drift |
+| ![Detail event: skor 4 engine, alasan, latensi](docs/images/screenshots/12-event-detail.png) | ![Case: event pemicu, trace rule, catatan investigasi](docs/images/screenshots/13-case-detail.png) |
+| Detail event: skor 4 engine, alasan, latensi | Case: event pemicu, trace rule, catatan investigasi |
+| ![Graph explorer: jalur ke pelanggan fraud terdekat](docs/images/screenshots/07-graph.png) | ![ML unsupervised: anomali & cluster (PCA)](docs/images/screenshots/09-ml-unsupervised.png) |
+| Graph explorer: jalur ke pelanggan fraud terdekat | ML unsupervised: anomali & cluster (PCA) |
+| ![Rule engine: rule berversi, maker–checker, shadow](docs/images/screenshots/05-rules.png) | ![ML supervised: model registry & metrik](docs/images/screenshots/08-ml-supervised.png) |
+| Rule engine: rule berversi, maker–checker, shadow | ML supervised: model registry & metrik |
+
+Screenshot lain: [`docs/images/screenshots/`](docs/images/screenshots/).
 
 ---
 
-## 📂 Struktur Proyek
-
-```
-fraud_detection_engine/
-├── app/                     # FastAPI core (user, transaction, rule, policy, processing)
-├── llm_module/              # Modul embedding, retriever, summarizer, agent, validation
-├── streamlit_llm_ui/        # Chat-based Streamlit UI
-├── Dockerfile               # Untuk fraud_engine
-├── Dockerfile.llm_chat      # Untuk llm_chat_ui
-├── Dockerfile.llm_embedder  # Untuk llm_module/main.py
-├── docker-compose.yml
-├── .env
-└── README.md
-```
-
----
-
-## 📈 Mermaid Diagram – Arsitektur Umum Fraud Detection Engine + LLM
+## Arsitektur singkat
 
 ```mermaid
-flowchart TD
-    subgraph Frontend
-        A1[🧑 User] --> A2[🖥️ Streamlit UI Fraud Engine]
-        A1 --> A3[💬 Streamlit Chat LLM UI]
-    end
-
-    subgraph CoreEngine[FastAPI Engine]
-        A2 --> B1[🧾 /transaction - Evaluasi transaksi]
-        A2 --> B2[📋 /rule, /policy - CRUD engine]
-        A3 --> B3[📊 /stats - Get statistik rule/policy]
-    end
-
-    subgraph LLM_Module[🧠 LLM Assistant]
-        A3 --> C1[LangChain Agent]
-        C1 --> C2["🔎 MongoDB VectorStore - Regulasi"]
-        C1 --> C3[🛠️ REST Tool - Hit API FastAPI]
-        C1 --> C4[📥 Rule Recommender]
-        C1 --> C5[✅ Rule Validator]
-        C1 --> C6[📤 Auto Poster ke API FastAPI]
-        C1 --> C7[📚 Ringkasan PDF Regulasi]
-    end
-
-    B1 --> D1[📦 MongoDB - Transaksi]
-    B2 --> D2[🧩 MongoDB - Rules & Policy]
-    C1 --> D2
-    C1 --> D3[🗂️ MongoDB - Audit Log]
+flowchart LR
+    U[Analyst] --> W[Web UI<br/>Nuxt]
+    C[Sistem klien] -->|webhook / API| G
+    W --> G[Gateway<br/>Traefik + IP allow-list]
+    G --> CORE[core-api<br/>Rust: tenant, ingest,<br/>orkestrasi, keputusan]
+    G --> RULE[rule-service<br/>Rust]
+    G --> GRAPH[graph-service<br/>Rust]
+    G --> ML[ml-service<br/>Python plugins]
+    G --> LLM[llm-service<br/>Python RAG]
+    G --> ING[ingest-service<br/>Python]
+    CORE --> RULE & GRAPH & ML
+    LLM --> OS[(OpenSearch)] & OL[Ollama]
+    CORE & RULE & GRAPH & ML & LLM & ING --> PG[(PostgreSQL<br/>schema per service + RLS)]
 ```
 
----
+Setiap event melewati: mapping → graph → fitur → ML → rules → kombinasi skor (noisy-OR) → keputusan
+**approve / review / decline** + alasan. Detail: [`docs/technical/architecture.md`](docs/technical/architecture.md).
 
-## 🛠️ Penjelasan Teknis – Implementasi LLM
+## Quick start
 
-### 1. RAG (Retrieval-Augmented Generation)
-- Load dokumen regulasi PDF
-- Embedding via OpenAI atau HuggingFace
-- Disimpan ke MongoDB Vector Store
-- Digunakan retriever untuk query berbasis konteks
+Kebutuhan: Docker + Docker Compose, RAM ± 16 GB (Ollama + OpenSearch), disk ± 20 GB.
 
-### 2. LangChain Agent
-- Menggunakan tools:
-  - REST API Tool (fetch stats)
-  - Rule JSON builder
-  - Poster rule
-- Dapat menggunakan OpenAI, Ollama, atau Gemini
-- Memory support untuk multi-turn chat
-
-### 3. Validasi dan Poster
-- Hasil ekstraksi divalidasi menggunakan `rule_schema_validator`
-- Jika valid → dikirim ke API `/rule/standard` atau `/rule/velocity`
-- Jika tidak → ditampilkan sebagai error
-
-### 4. Audit Trail
-- Semua interaksi agent, upload, dan ekstraksi dicatat di collection MongoDB `audit_trail`
-
----
-
-## 📘 Mermaid – Alur Agent Reasoning untuk Rule Rekomendasi
-
-```mermaid
-sequenceDiagram
-    participant U as User (Streamlit)
-    participant A as LangChain Agent
-    participant R as MongoDB VectorDB
-    participant S as FastAPI Stats API
-    participant V as Rule Validator
-    participant P as FastAPI Rule API
-
-    U->>A: "Tolong buat rule baru..."
-    A->>R: retrieve regulasi dari MongoDB
-    A->>S: fetch stats policy/rule
-    A->>A: reasoning (combine regulasi + statistik)
-    A->>V: validate rule JSON structure
-    alt Valid
-        A->>P: POST rule ke /rule endpoint
-        P-->>A: 200 OK
-        A-->>U: ✅ Rule berhasil dikirim
-    else Invalid
-        V-->>A: ❌ validation failed
-        A-->>U: Tampilkan error dan source
-    end
+```bash
+cp .env.example .env              # lalu ganti semua nilai CHANGE_ME
+docker compose up -d --build      # build & jalankan semua service
+docker compose up ollama-pull     # unduh model LLM (sekali saja, ± 6 GB)
+docker compose --profile seed run --rm simulator   # opsional: data demo
 ```
 
----
+| Akses | Default |
+|---|---|
+| Web UI | `http://<host>:3000` (`WEB_HOST_PORT`) |
+| API gateway | `http://<host>:8080/api/v1` (`GATEWAY_HOST_PORT`) |
+| OpenAPI per service | `http://<host>:8080/api/openapi/{core,rule,graph,ml,llm,ingest}.json` |
 
-## 🔄 Alur Upload Regulasi dan Auto-Retriever Reload
+Hanya jaringan di `ALLOWED_SOURCE_RANGES` (default `10.100.21.0/24`, `192.168.1.0/24`) yang bisa mengakses UI dan
+API. Login pertama memakai `ADMIN_EMAIL` / `ADMIN_PASSWORD` dari `.env`.
 
-```mermaid
-sequenceDiagram
-    participant U as User (Upload PDF)
-    participant S as Streamlit LLM UI
-    participant E as Embedder
-    participant M as MongoDB Vector
-    participant C as Retriever Cache
+Panduan lengkap: [Quickstart](docs/guides/quickstart.md) · [Deployment](docs/guides/deployment.md).
 
-    U->>S: Upload PDF OJK
-    S->>E: Simpan file & proses
-    E->>M: Simpan embedding
-    E->>C: Reset retriever cache
-    S-->>U: ✅ Berhasil, siap digunakan
+## Dokumentasi
+
+| Untuk | Dokumen |
+|---|---|
+| Bisnis / manajemen | [Ringkasan non-teknis](docs/business/overview.md) |
+| Pengguna (analis) | [Panduan pengguna per engine](docs/guides/user-guide.md) |
+| Developer | [Panduan developer](docs/guides/developer-guide.md) · [Kenapa struktur Rust-nya begini (untuk developer Java)](docs/technical/rust-codebase-guide.md) |
+| Operasional | [Deployment & operasional](docs/guides/deployment.md) |
+| Riset | [Panduan eksperimen (demo & dataset publik, master snapshot)](docs/guides/experiments.md) |
+| Teknologi & metode | [Technical overview: tech stack, arsitektur software & AI, metode/sains](docs/technical/technical-overview.md) |
+| Kontrak teknis | [Arsitektur](docs/technical/architecture.md) · [Multi-tenancy](docs/technical/multi-tenancy.md) · [Rule DSL](docs/technical/rule-dsl.md) · [Data source](docs/technical/data-sources.md) · [Feature catalog](docs/technical/feature-catalog.md) · [ML plugins](docs/technical/ml-plugins.md) · [API](docs/technical/api-contract.md) |
+| Kualitas | [Dataset riset harian (demo live)](docs/technical/research-dataset.md) · [Evaluasi deteksi end-to-end](docs/technical/evaluation.md) · [Gap analysis](docs/technical/gap-analysis.md) |
+| Rencana | [Backlog](docs/backlog.md) |
+
+## Struktur repository
+
+```
+services/rust/        core-api, rule-service, graph-service + crate platform, contracts, rule-engine
+services/python/      ml-service, llm-service, ingest-service
+web/                  Nuxt UI
+db/migrations/        skema PostgreSQL (satu sumber kebenaran) + db/tests
+deploy/               init Postgres, konfigurasi gateway
+plugins/              plugin algoritma ML eksternal (hot reload)
+tools/simulator/      generator data sintetis + evaluasi
+docs/                 dokumentasi teknis, bisnis, panduan, backlog
+legacy/               kode versi awal (FastAPI + MongoDB), history lengkap di branch legacy/python-fastapi-mongo
 ```
 
----
+## Lisensi
 
-## 🧪 API Endpoint Overview
+Hak cipta © 2025–2026 **Hendri Karisma**. Dirilis di bawah **GNU Affero General Public License v3.0 only**
+([LICENSE](LICENSE)) dengan ketentuan tambahan atribusi sesuai pasal 7(b) ([NOTICE](NOTICE)):
 
-| Endpoint | Method | Keterangan |
-|----------|--------|------------|
-| `/api/v1/user/` | GET/POST | Manajemen user |
-| `/api/v1/transaction/` | POST/GET | Transaksi baru & daftar |
-| `/api/v1/policy/` | POST/GET | Policy baru & daftar |
-| `/api/v1/rule/standard` | POST/GET | Rule standard |
-| `/api/v1/rule/velocity` | POST/GET | Rule velocity |
-| `/api/v1/process/transaction` | POST | Evaluasi transaksi |
-| `/api/v1/stats/...` | GET | Statistik rule/policy/transaksi |
-
----
-
-## 🔧 Konfigurasi `.env`
-
-```dotenv
-MONGO_URI=mongodb://mongo:27017
-MONGO_DB_NAME=fraud_detection
-LLM_PROVIDER=ollama
-OLLAMA_MODEL=deepseek-8b-instruct
-OLLAMA_BASE_URL=http://localhost:11434
-OPENAI_API_KEY=your-openai-key
-GOOGLE_API_KEY=your-google-api-key
-```
-
----
-
-## 🛠️ Teknologi
-
-- FastAPI
-- MongoDB
-- Streamlit
-- LangChain
-- Ollama / OpenAI / Gemini
-- Docker + Poetry
-
----
-
-## ✅ Status
-
-| Komponen | Status |
-|----------|--------|
-| FastAPI Fraud Engine | ✅ |
-| LLM Chat UI | ✅ |
-| LangChain Agent | ✅ |
-| Embedder + Retriever | ✅ |
-| Auto retriever refresh | ✅ |
-| Audit Log | ✅ |
-| Rule Extractor + Validator | ✅ |
+* Siapa pun boleh memakai, mempelajari, menjalankan, dan memodifikasi software ini, termasuk sebagai layanan online.
+* Versi yang dimodifikasi **wajib tetap memakai lisensi yang sama**, dan source code-nya wajib tersedia bagi
+  penggunanya.
+* **Atribusi tidak boleh dihapus:** Hendri Karisma sebagai pembuat asli, serta semua kontributor sebelumnya
+  ([AUTHORS](AUTHORS)), harus tetap dicantumkan.

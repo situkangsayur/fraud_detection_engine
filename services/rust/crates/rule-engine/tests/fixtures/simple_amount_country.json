@@ -1,0 +1,30 @@
+{
+  "kind": "simple",
+  "when": {
+    "all": [
+      {
+        "left": {
+          "type": "field",
+          "path": "event.amount"
+        },
+        "op": "gt",
+        "right": {
+          "type": "const",
+          "value": 5000000
+        }
+      },
+      {
+        "left": {
+          "type": "field",
+          "path": "event.issuer_country"
+        },
+        "op": "ne",
+        "right": {
+          "type": "field",
+          "path": "event.geo_country"
+        }
+      }
+    ]
+  },
+  "scoring": "binary"
+}

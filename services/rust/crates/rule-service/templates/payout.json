@@ -1,0 +1,243 @@
+{
+  "stage": "payout",
+  "description": "Seller / wallet withdrawals: mule beneficiaries, balance drains, network proximity.",
+  "reference_lists": [
+    {
+      "name": "mule_accounts",
+      "description": "Beneficiary account fingerprints linked to mule activity",
+      "list_type": "blacklist",
+      "key_kind": "recipient_fingerprint",
+      "columns": [],
+      "entries": []
+    }
+  ],
+  "rules": [
+    {
+      "code": "RL-PAY-MULE",
+      "name": "Payout to mule account",
+      "description": "Beneficiary is on the mule list",
+      "kind": "reference",
+      "typologies": [
+        "money_mule"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 100,
+      "trapped_score": 0,
+      "action": "force_decline",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "reference",
+        "list": "mule_accounts",
+        "key": {
+          "type": "field",
+          "path": "event.recipient_fingerprint"
+        },
+        "mode": "exists"
+      }
+    },
+    {
+      "code": "RL-PAY-DRAIN",
+      "name": "Drain to a new beneficiary (formula)",
+      "description": "F(a,s) = a / max(s, 1) > 5 with a new beneficiary",
+      "kind": "simple",
+      "typologies": [
+        "bank_account_takeover"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 60,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "all": [
+            {
+              "left": {
+                "type": "formula",
+                "expr": "F(a,s) = a / max(s, 1)",
+                "args": {
+                  "a": {
+                    "type": "field",
+                    "path": "event.amount"
+                  },
+                  "s": {
+                    "type": "field",
+                    "path": "features.cust_txn_avg_30d"
+                  }
+                }
+              },
+              "op": "gt",
+              "right": {
+                "type": "const",
+                "value": 5
+              }
+            },
+            {
+              "left": {
+                "type": "field",
+                "path": "features.is_new_recipient"
+              },
+              "op": "eq",
+              "right": {
+                "type": "const",
+                "value": 1
+              }
+            }
+          ]
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-PAY-FANIN",
+      "name": "Beneficiary fan-in",
+      "description": ">= 5 distinct customers paid the same beneficiary in 7 days",
+      "kind": "velocity",
+      "typologies": [
+        "money_mule"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 55,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "velocity",
+        "history_event_types": [
+          "payout"
+        ],
+        "group_by": [
+          "recipient_fingerprint"
+        ],
+        "window": {
+          "duration": "7d"
+        },
+        "aggregate": {
+          "fn": "distinct_count",
+          "field": "customer_id"
+        },
+        "include_current": true,
+        "compare": {
+          "op": "gte",
+          "right": {
+            "type": "const",
+            "value": 5
+          }
+        }
+      }
+    },
+    {
+      "code": "RL-PAY-AFTER-CHANGE",
+      "name": "Payout right after account change",
+      "description": "Payout within 1 hour of an account change",
+      "kind": "simple",
+      "typologies": [
+        "bank_account_takeover"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 40,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": true,
+      "definition": {
+        "kind": "simple",
+        "when": {
+          "left": {
+            "type": "field",
+            "path": "features.secs_since_account_change"
+          },
+          "op": "between",
+          "right": {
+            "type": "const",
+            "value": [
+              0,
+              3600
+            ]
+          }
+        },
+        "scoring": "binary"
+      }
+    },
+    {
+      "code": "RL-PAY-GRAPH",
+      "name": "Direct link to fraud",
+      "description": "Shares an entity with a confirmed fraud customer",
+      "kind": "graph",
+      "typologies": [
+        "money_mule"
+      ],
+      "event_types": [
+        "payout"
+      ],
+      "risk_score": 70,
+      "trapped_score": 0,
+      "action": "score",
+      "on_trapped": "ignore",
+      "missing_as_no_match": false,
+      "definition": {
+        "kind": "graph",
+        "metric": "distance_to_fraud",
+        "include_similar": true,
+        "max_depth": 3,
+        "compare": {
+          "op": "lte",
+          "right": {
+            "type": "const",
+            "value": 1
+          }
+        }
+      }
+    }
+  ],
+  "rulesets": [
+    {
+      "code": "RS-PAYOUT",
+      "name": "Payout protection",
+      "description": "Withdrawals and transfers",
+      "event_types": [
+        "payout"
+      ],
+      "typologies": [
+        "money_mule",
+        "bank_account_takeover"
+      ],
+      "aggregation": "probabilistic_or",
+      "max_score": 100,
+      "members": [
+        {
+          "rule": "RL-PAY-MULE",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PAY-DRAIN",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PAY-FANIN",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PAY-AFTER-CHANGE",
+          "weight": 1
+        },
+        {
+          "rule": "RL-PAY-GRAPH",
+          "weight": 1
+        }
+      ]
+    }
+  ]
+}

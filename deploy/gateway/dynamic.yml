@@ -1,0 +1,112 @@
+# Path-based routing to backend services — keep in sync with docs/technical/architecture.md §7.
+# Internal-only paths (/v1/...) are never routed; only /api/v1/... is exposed.
+# This file is a Go template (Traefik file provider + Sprig): ALLOWED_SOURCE_RANGES comes from the gateway env.
+http:
+  middlewares:
+    # Only clients from these networks may reach the UI or the API (source IP of the TCP connection;
+    # X-Forwarded-For is NOT trusted). Configure with ALLOWED_SOURCE_RANGES in .env (comma-separated CIDRs).
+    lan-only:
+      ipAllowList:
+        sourceRange:
+{{- range $cidr := splitList "," (env "ALLOWED_SOURCE_RANGES") }}
+{{- if trim $cidr }}
+          - "{{ trim $cidr }}"
+{{- end }}
+{{- end }}
+    secure-headers:
+      headers:
+        frameDeny: true
+        contentTypeNosniff: true
+        referrerPolicy: no-referrer
+        stsSeconds: 0              # set 31536000 behind TLS in production
+    body-limit-default:
+      buffering:
+        maxRequestBodyBytes: 5242880        # 5 MB
+    body-limit-upload:
+      buffering:
+        maxRequestBodyBytes: 209715200      # 200 MB (dataset / regulation uploads)
+    ingest-ratelimit:
+      rateLimit:
+        average: 500
+        burst: 1000
+    auth-ratelimit:
+      rateLimit:
+        average: 5
+        period: 1s
+        burst: 20
+    openapi-path:
+      replacePath:
+        path: /openapi.json
+
+  routers:
+    rule-service:
+      entryPoints: [web]
+      rule: PathRegexp(`^/api/v1/projects/[^/]+/(rules|rulesets|reference-lists|formulas|proposals)(/|$)`) || PathRegexp(`^/api/v1/tenants/[^/]+/reference-lists(/|$)`)
+      priority: 100
+      service: rule-service
+      middlewares: [lan-only, secure-headers, body-limit-default]
+    graph-service:
+      entryPoints: [web]
+      rule: PathRegexp(`^/api/v1/projects/[^/]+/graph(/|$)`)
+      priority: 100
+      service: graph-service
+      middlewares: [lan-only, secure-headers, body-limit-default]
+    ml-service:
+      entryPoints: [web]
+      rule: PathRegexp(`^/api/v1/projects/[^/]+/ml(/|$)`) || PathPrefix(`/api/v1/ml/`)
+      priority: 100
+      service: ml-service
+      middlewares: [lan-only, secure-headers, body-limit-default]
+    llm-service:
+      entryPoints: [web]
+      rule: PathRegexp(`^/api/v1/projects/[^/]+/llm(/|$)`) || PathRegexp(`^/api/v1/tenants/[^/]+/regulations(/|$)`)
+      priority: 100
+      service: llm-service
+      middlewares: [lan-only, secure-headers, body-limit-upload]
+    ingest-service:
+      entryPoints: [web]
+      rule: PathRegexp(`^/api/v1/projects/[^/]+/data-sources/[^/]+/(inspect|jobs)(/|$)`) || PathRegexp(`^/api/v1/projects/[^/]+/ingest-jobs(/|$)`)
+      priority: 110
+      service: ingest-service
+      middlewares: [lan-only, secure-headers, body-limit-upload]
+    ingest-webhook:
+      entryPoints: [web]
+      rule: PathPrefix(`/api/v1/ingest/`)
+      priority: 90
+      service: core-api
+      middlewares: [lan-only, secure-headers, ingest-ratelimit, body-limit-default]
+    auth:
+      entryPoints: [web]
+      rule: PathPrefix(`/api/v1/auth/`)
+      priority: 90
+      service: core-api
+      middlewares: [lan-only, secure-headers, auth-ratelimit, body-limit-default]
+    core-api:
+      entryPoints: [web]
+      rule: PathPrefix(`/api/v1/`)
+      priority: 10
+      service: core-api
+      middlewares: [lan-only, secure-headers, body-limit-default]
+
+    web-ui:
+      entryPoints: [ui]
+      rule: PathPrefix(`/`)
+      service: web
+      middlewares: [lan-only, body-limit-upload]
+
+    # OpenAPI documents per service: /api/openapi/<service>.json
+    openapi-core:   { entryPoints: [web], rule: Path(`/api/openapi/core.json`),   service: core-api,       middlewares: [lan-only, openapi-path] }
+    openapi-rule:   { entryPoints: [web], rule: Path(`/api/openapi/rule.json`),   service: rule-service,   middlewares: [lan-only, openapi-path] }
+    openapi-graph:  { entryPoints: [web], rule: Path(`/api/openapi/graph.json`),  service: graph-service,  middlewares: [lan-only, openapi-path] }
+    openapi-ml:     { entryPoints: [web], rule: Path(`/api/openapi/ml.json`),     service: ml-service,     middlewares: [lan-only, openapi-path] }
+    openapi-llm:    { entryPoints: [web], rule: Path(`/api/openapi/llm.json`),    service: llm-service,    middlewares: [lan-only, openapi-path] }
+    openapi-ingest: { entryPoints: [web], rule: Path(`/api/openapi/ingest.json`), service: ingest-service, middlewares: [lan-only, openapi-path] }
+
+  services:
+    core-api:       { loadBalancer: { servers: [{ url: "http://core-api:8080" }],       healthCheck: { path: /health/ready, interval: 10s } } }
+    rule-service:   { loadBalancer: { servers: [{ url: "http://rule-service:8081" }],   healthCheck: { path: /health/ready, interval: 10s } } }
+    graph-service:  { loadBalancer: { servers: [{ url: "http://graph-service:8082" }],  healthCheck: { path: /health/ready, interval: 10s } } }
+    ml-service:     { loadBalancer: { servers: [{ url: "http://ml-service:8001" }],     healthCheck: { path: /health/ready, interval: 10s } } }
+    llm-service:    { loadBalancer: { servers: [{ url: "http://llm-service:8002" }],    healthCheck: { path: /health/ready, interval: 10s } } }
+    ingest-service: { loadBalancer: { servers: [{ url: "http://ingest-service:8003" }], healthCheck: { path: /health/ready, interval: 10s } } }
+    web:            { loadBalancer: { servers: [{ url: "http://web:3000" }],            healthCheck: { path: /healthz, interval: 10s } } }

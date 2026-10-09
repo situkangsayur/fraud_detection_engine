@@ -1,0 +1,14 @@
+{#- prompt: fraud_situation  version: 1 -#}
+{% include "system_base.md.j2" %}
+
+## Task: current fraud & anomaly situation (last {{ since_days }} days)
+Explain the current situation to fraud managers: volumes and decision mix, trends per typology, emerging anomaly clusters (size, fraud rate, distinguishing features), suspicious graph components/communities, data drift, degraded-engine rate. Highlight the top 3–5 risks with evidence and suggest next actions (investigations, rules to review, models to retrain). Only use the data below.
+
+<analytics_overview>{{ overview | tojson }}</analytics_overview>
+<typologies>{{ typologies | tojson }}</typologies>
+<anomaly_clusters>{{ clusters | tojson }}</anomaly_clusters>
+<graph_components>{{ components | tojson }}</graph_components>
+<graph_communities>{{ communities | tojson }}</graph_communities>
+<feature_drift>{{ drift | tojson }}</feature_drift>
+
+Return JSON matching the provided schema. `summary_md` is the markdown report.

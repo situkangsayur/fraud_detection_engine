@@ -1,0 +1,20 @@
+{
+  "kind": "reference",
+  "list": "merchant_limits",
+  "key": {
+    "type": "field",
+    "path": "event.merchant_id"
+  },
+  "mode": "attribute",
+  "attribute_condition": {
+    "left": {
+      "type": "field",
+      "path": "event.amount"
+    },
+    "op": "gt",
+    "right": {
+      "type": "ref",
+      "path": "max_amount"
+    }
+  }
+}

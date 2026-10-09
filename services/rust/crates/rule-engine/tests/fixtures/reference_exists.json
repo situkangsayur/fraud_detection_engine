@@ -1,0 +1,9 @@
+{
+  "kind": "reference",
+  "list": "card_blacklist",
+  "key": {
+    "type": "field",
+    "path": "event.instrument_fingerprint"
+  },
+  "mode": "exists"
+}
