@@ -108,8 +108,8 @@ ringkasan data project dikirim ke Google; pastikan ini sesuai kebijakan data And
 
 ### Ollama di host dengan GPU 8 GB (mis. nvda11-gpu, RTX 3060 Ti)
 
-Laporan analisis mengirim prompt ±15 ribu token. Agar konteks 24k muat di VRAM 8 GB, jalankan server Ollama dengan
-cache konteks terkuantisasi (systemd override `/etc/systemd/system/ollama.service.d/*.conf`):
+Laporan analisis mengirim prompt ±15 ribu token. Agar konteks besar muat di VRAM 8 GB, jalankan server Ollama dengan
+cache konteks terkuantisasi (systemd override `/etc/systemd/system/ollama.service.d/*.conf`). Dengan ini qwen3:8b + konteks 20k = 8,0 GB, seluruhnya di GPU (24k sudah melewati 8 GB → sebagian layer pindah ke CPU):
 
 ```ini
 [Service]
@@ -117,7 +117,7 @@ Environment="OLLAMA_FLASH_ATTENTION=1"
 Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
 ```
 
-lalu di `.env`: `OLLAMA_NUM_CTX=24576`, `OLLAMA_NUM_PREDICT=4096`, `OLLAMA_THINK=false`. Cek `ollama ps` (kolom
+lalu di `.env`: `OLLAMA_NUM_CTX=20480`, `OLLAMA_NUM_PREDICT=4096`, `OLLAMA_THINK=false`. Cek `ollama ps` (kolom
 PROCESSOR sebaiknya ≥ 90% GPU) dan log llm-service `analysis_prompt` (perkiraan token prompt). Ollama mencatat
 `truncating input prompt` bila prompt melebihi konteks — instruksi di awal prompt akan hilang.
 
