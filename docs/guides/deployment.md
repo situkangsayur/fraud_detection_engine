@@ -106,6 +106,24 @@ tetap memakai Ollama, sehingga index regulasi lama tetap berlaku. Konsekuensinya
 ringkasan data project dikirim ke Google; pastikan ini sesuai kebijakan data Anda. Setelah mengubah `.env`, jalankan
 `docker compose up -d llm-service`.
 
+### Ollama di host dengan GPU 8 GB (mis. nvda11-gpu, RTX 3060 Ti)
+
+Laporan analisis mengirim prompt ±15 ribu token. Agar konteks 24k muat di VRAM 8 GB, jalankan server Ollama dengan
+cache konteks terkuantisasi (systemd override `/etc/systemd/system/ollama.service.d/*.conf`):
+
+```ini
+[Service]
+Environment="OLLAMA_FLASH_ATTENTION=1"
+Environment="OLLAMA_KV_CACHE_TYPE=q8_0"
+```
+
+lalu di `.env`: `OLLAMA_NUM_CTX=24576`, `OLLAMA_NUM_PREDICT=4096`, `OLLAMA_THINK=false`. Cek `ollama ps` (kolom
+PROCESSOR sebaiknya ≥ 90% GPU) dan log llm-service `analysis_prompt` (perkiraan token prompt). Ollama mencatat
+`truncating input prompt` bila prompt melebihi konteks — instruksi di awal prompt akan hilang.
+
+Jika driver NVIDIA tidak termuat setelah upgrade kernel (`nvidia-smi` gagal), build modul DKMS untuk kernel berjalan:
+`sudo dkms install nvidia/<versi> -k $(uname -r) && sudo modprobe nvidia && sudo systemctl restart ollama`.
+
 ### GPU lokal
 
 ```bash
@@ -161,7 +179,8 @@ Migrasi bersifat maju saja (forward-only). Selalu backup sebelum upgrade.
 | UI/API 403 | IP klien tidak ada di `ALLOWED_SOURCE_RANGES` (cek `docker compose logs gateway`, field `ClientHost`) |
 | Port 3000 "already allocated" | port dipakai aplikasi lain, ganti `WEB_HOST_PORT` |
 | `migrate` gagal | kredensial `MIGRATOR_DB_PASSWORD` berbeda dengan saat volume Postgres pertama dibuat. Role dibuat sekali saat init volume. |
-| Chat/analisis AI lambat atau timeout | model belum ditarik (`ollama-pull`) atau tanpa GPU. Gunakan model lebih kecil. |
+| Chat/analisis AI lambat atau timeout | model belum ditarik (`ollama-pull`) atau tanpa GPU (`nvidia-smi`, `ollama ps`). Gunakan model lebih kecil. |
+| Laporan LLM ngawur / tidak ada proposal | prompt terpotong (`truncating input prompt` di log Ollama) → naikkan `OLLAMA_NUM_CTX`; proposal ditolak validator DSL → lihat `structured.proposals[].validation` di laporan. |
 | Keputusan selalu "approve" di project baru | belum ada model aktif dan threshold belum dikalibrasi. Lihat `evaluation.md` dan bagian Settings di panduan pengguna. |
 | `degraded: ["supervised"]` | ml-service down/timeout. Keputusan tetap keluar dari engine lain. |
 | Login gagal "Bad Request" / "premature close" | header `Cookie` terlalu besar karena banyak aplikasi lain di host/IP yang sama (cookie berlaku per host, bukan per port). Web menerima header s/d 64 KB; bila masih terjadi, hapus cookie untuk host tersebut. |

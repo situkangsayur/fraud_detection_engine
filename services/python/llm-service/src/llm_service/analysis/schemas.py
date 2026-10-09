@@ -183,3 +183,29 @@ MAPPING_OUTPUT_SCHEMA: dict[str, Any] = {
     },
     "required": ["suggestions"],
 }
+
+
+# Every free-text string gets a maxLength. Grammar-constrained decoding then has to close the string: without a
+# bound a model can keep writing one field until num_predict cuts it off, leaving unterminated, unparseable JSON
+# (seen with recommend-rules on post-payment: an endless summary_md).
+_MAX_LEN = {"summary_md": 6000}
+_DEFAULT_MAX_LEN = 1500
+_ITEM_MAX_LEN = 300
+
+
+def _bound_strings(node: Any, key: str | None = None) -> None:
+    if isinstance(node, dict):
+        if node.get("type") == "string" and not {"enum", "pattern", "maxLength"} & node.keys():
+            node["maxLength"] = _ITEM_MAX_LEN if key == "[]" else _MAX_LEN.get(key or "", _DEFAULT_MAX_LEN)
+        for k, v in node.get("properties", {}).items():
+            _bound_strings(v, k)
+        if "items" in node:
+            _bound_strings(node["items"], "[]")
+        for k in ("anyOf", "oneOf", "allOf"):
+            for v in node.get(k, []):
+                _bound_strings(v, key)
+
+
+for _name, _schema in list(globals().items()):
+    if _name.endswith("_SCHEMA") and isinstance(_schema, dict):
+        _bound_strings(_schema)
