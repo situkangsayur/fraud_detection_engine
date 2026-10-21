@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FraudProximity, GraphComponent, GraphNode, GraphSearchResult, GraphStats, LinkKind, Neighborhood } from '#shared/types/api'
+import type { Customer, FraudProximity, GraphComponent, GraphNode, GraphSearchResult, GraphStats, LinkKind, Neighborhood, Page } from '#shared/types/api'
 
 const { t } = useI18n()
 const api = useApi()
@@ -16,11 +16,38 @@ const opts = reactive({ depth: 2, include_similar: true, link_kinds: [...(projec
 const q = ref('')
 const dq = useDebounced(q)
 // Search needs ≥ 2 characters (gateway returns 422 otherwise); the current customer stays selectable.
-const { data: hits } = await useAsyncData<{ label: string, value: string }[]>(`graph-search-${pid.value}`, async () => {
-  if (dq.value.trim().length < 2) return customerId.value ? [{ label: shortId(customerId.value), value: customerId.value }] : []
-  const r = await api.get<GraphSearchResult>(`${apiBase.value}/graph/search`, { query: { q: dq.value.trim() }, silent: true }).catch(() => null)
-  return (r?.customers ?? []).map(c => ({ label: `${c.external_id}${c.risk_label === 'fraud' ? ' · fraud' : ''}`, value: c.id }))
+// Two sources: core-api customers (external id, name, email) and graph entities (email, phone, IP, device, ref id,
+// exact normalised match). Picking an entity focuses the most recently linked customer.
+type SearchItem = { label: string, value?: string, description?: string, icon?: string, type?: 'label' }
+const { data: hits } = await useAsyncData<SearchItem[][]>(`graph-search-${pid.value}`, async () => {
+  const term = dq.value.trim()
+  if (term.length < 2) return customerId.value ? [[{ label: shortId(customerId.value), value: customerId.value }]] : []
+  const [g, c] = await Promise.all([
+    api.get<GraphSearchResult>(`${apiBase.value}/graph/search`, { query: { q: term }, silent: true }).catch(() => null),
+    api.get<Page<Customer>>(`${apiBase.value}/customers`, { query: { q: term, page_size: 10 }, silent: true }).catch(() => null),
+  ])
+  const customers = new Map<string, SearchItem>()
+  for (const x of c?.items ?? []) {
+    const description = [x.full_name, x.email, x.phone, x.risk_label === 'fraud' ? t('status.fraud') : ''].filter(Boolean).join(' · ')
+    customers.set(x.id, { label: x.external_id, value: x.id, description, icon: x.risk_label === 'fraud' ? 'i-lucide-user-x' : 'i-lucide-user' })
+  }
+  for (const x of g?.customers ?? []) {
+    if (!customers.has(x.id)) customers.set(x.id, { label: x.external_id, value: x.id, description: x.risk_label === 'fraud' ? t('status.fraud') : undefined, icon: 'i-lucide-user' })
+  }
+  const entities: SearchItem[] = (g?.entities ?? []).filter(e => e.customer_ids.length).map(e => ({
+    label: `${t(`graph.kinds.${e.kind}`)}: ${e.display_value}`,
+    value: e.customer_ids[0],
+    description: t('graph.linkedCustomers', { n: e.customer_count }),
+    icon: 'i-lucide-link',
+  }))
+  const groups: SearchItem[][] = []
+  if (customers.size) groups.push([{ type: 'label', label: t('graph.customers') }, ...customers.values()])
+  if (entities.length) groups.push([{ type: 'label', label: t('graph.entities') }, ...entities])
+  return groups
 }, { default: () => [], watch: [dq] })
+
+// Starting points for the empty state: labelled fraud customers, so there is always something to click.
+const { data: fraudStarters } = await useAsyncData<Customer[]>(`graph-starters-${pid.value}`, () => api.get<Page<Customer>>(`${apiBase.value}/customers`, { query: { risk_label: 'fraud', page_size: 8 }, silent: true }).then(p => p.items).catch(() => []), { default: () => [] as Customer[] })
 
 const graph = ref<Neighborhood>({ nodes: [], edges: [] })
 const proximity = ref<FraudProximity | null>(null)
@@ -61,7 +88,21 @@ const showPath = ref(true)
 const { data: stats } = await useAsyncData(`graph-stats-${pid.value}`, () => api.get<GraphStats>(`${apiBase.value}/graph/stats`, { silent: true }).catch(() => null))
 const onlyFraud = ref(true)
 const { data: components } = await useAsyncData<GraphComponent[]>(`graph-components-${pid.value}`, () => api.get<GraphComponent[]>(`${apiBase.value}/graph/components`, { query: { min_size: 3, only_with_fraud: onlyFraud.value }, silent: true }).catch(() => []), { default: () => [] as GraphComponent[], watch: [onlyFraud] })
-const canvas = ref<{ fit: () => void, exportPng: () => void }>()
+const canvas = ref<{ fit: () => void, resize: () => void, exportPng: () => void }>()
+
+// Fullscreen for the canvas area (legend and overlays included); Cytoscape must be resized after the switch.
+const stage = ref<HTMLElement>()
+const isFullscreen = ref(false)
+async function toggleFullscreen() {
+  if (document.fullscreenElement) await document.exitFullscreen()
+  else await stage.value?.requestFullscreen().catch(() => { /* not allowed (e.g. iframe): stay inline */ })
+}
+function onFullscreenChange() {
+  isFullscreen.value = document.fullscreenElement === stage.value
+  nextTick(() => canvas.value?.resize())
+}
+onMounted(() => document.addEventListener('fullscreenchange', onFullscreenChange))
+onBeforeUnmount(() => document.removeEventListener('fullscreenchange', onFullscreenChange))
 </script>
 
 <template>
@@ -78,7 +119,7 @@ const canvas = ref<{ fit: () => void, exportPng: () => void }>()
           value-key="value"
           :placeholder="t('graph.searchCustomer')"
           icon="i-lucide-search"
-          class="w-80"
+          class="w-full sm:w-96"
           ignore-filter
         />
         <USelectMenu
@@ -113,77 +154,108 @@ const canvas = ref<{ fit: () => void, exportPng: () => void }>()
             :aria-label="t('graph.exportPng')"
             @click="canvas?.exportPng()"
           />
+          <UButton
+            :icon="isFullscreen ? 'i-lucide-minimize-2' : 'i-lucide-maximize-2'"
+            color="neutral"
+            variant="ghost"
+            :aria-label="isFullscreen ? t('graph.exitFullscreen') : t('graph.fullscreen')"
+            @click="toggleFullscreen"
+          />
         </div>
       </div>
     </template>
 
     <div class="grid xl:grid-cols-[1fr_20rem] gap-4">
-      <UCard :ui="{ body: 'p-0 sm:p-0 h-[560px] relative' }">
-        <UEmpty
-          v-if="!customerId"
-          icon="i-lucide-share-2"
-          :title="t('graph.pickCustomer')"
-          :description="t('graph.pickCustomerHelp')"
-          class="h-full"
-        />
-        <ClientOnly v-else>
-          <GraphCanvas
-            ref="canvas"
-            :nodes="graph.nodes"
-            :edges="graph.edges"
-            :highlight-path="showPath ? proximity?.path.map(n => n.id) : []"
-            @select="n => (selected = n)"
-            @expand="expand"
-          />
-        </ClientOnly>
-        <UBadge
-          v-if="graph.truncated"
-          color="warning"
-          variant="soft"
-          size="sm"
-          class="absolute top-2 left-2"
-        >
-          {{ t('graph.truncated') }}
-        </UBadge>
+      <UCard :ui="{ body: 'p-0 sm:p-0 h-[calc(100dvh-15rem)] min-h-[600px]' }">
         <div
-          v-if="loading"
-          class="absolute inset-0 flex items-center justify-center bg-default/40"
+          ref="stage"
+          class="relative h-full bg-default"
         >
-          <UIcon
-            name="i-lucide-loader-circle"
-            class="size-8 animate-spin text-primary"
-          />
-        </div>
-        <div class="absolute bottom-2 left-2 flex flex-wrap gap-1 text-[10px]">
-          <UBadge
-            color="error"
-            variant="soft"
-            size="xs"
+          <div
+            v-if="!customerId"
+            class="h-full overflow-y-auto flex flex-col items-center justify-center gap-5 p-6 text-center"
           >
-            ● {{ t('status.fraud') }}
-          </UBadge>
+            <UIcon
+              name="i-lucide-share-2"
+              class="size-10 text-muted"
+            />
+            <div class="space-y-1 max-w-lg">
+              <h3 class="text-base font-medium">
+                {{ t('graph.pickCustomer') }}
+              </h3>
+              <p class="text-sm text-muted">
+                {{ t('graph.pickCustomerHelp') }}
+              </p>
+            </div>
+            <div
+              v-if="fraudStarters.length"
+              class="w-full max-w-lg text-left"
+            >
+              <p class="text-xs text-muted mb-2">
+                {{ t('graph.startFromFraud') }}
+              </p>
+              <div class="grid sm:grid-cols-2 gap-2">
+                <UButton
+                  v-for="c in fraudStarters"
+                  :key="c.id"
+                  color="neutral"
+                  variant="outline"
+                  icon="i-lucide-user-x"
+                  class="justify-start min-w-0"
+                  @click="customerId = c.id"
+                >
+                  <span class="truncate">
+                    <span class="fp-mono">{{ c.external_id }}</span>
+                    <span
+                      v-if="c.full_name"
+                      class="text-muted"
+                    > · {{ c.full_name }}</span>
+                  </span>
+                </UButton>
+              </div>
+            </div>
+            <p
+              v-else-if="components.length"
+              class="text-xs text-muted max-w-lg"
+            >
+              {{ t('graph.startFromComponents') }}
+            </p>
+          </div>
+          <ClientOnly v-else>
+            <GraphCanvas
+              ref="canvas"
+              :nodes="graph.nodes"
+              :edges="graph.edges"
+              :highlight-path="showPath ? proximity?.path.map(n => n.id) : []"
+              @select="n => (selected = n)"
+              @expand="expand"
+            />
+          </ClientOnly>
           <UBadge
-            color="primary"
-            variant="soft"
-            size="xs"
-          >
-            ● {{ t('common.customer') }}
-          </UBadge>
-          <UBadge
-            color="neutral"
-            variant="soft"
-            size="xs"
-          >
-            ■ {{ t('graph.entity') }}
-          </UBadge>
-          <UBadge
+            v-if="graph.truncated"
             color="warning"
             variant="soft"
-            size="xs"
+            size="sm"
+            class="absolute top-2 left-2"
           >
-            ┄ {{ t('graph.similar') }}
+            {{ t('graph.truncated') }}
           </UBadge>
-          <span class="text-muted self-center ml-1">{{ t('graph.dblClickExpand') }}</span>
+          <GraphLegend
+            v-if="customerId"
+            :nodes="graph.nodes"
+            :edges="graph.edges"
+            :show-path="showPath && !!proximity?.path.length"
+            class="absolute top-2 right-2"
+          />
+          <div
+            v-if="loading"
+            class="absolute inset-0 flex items-center justify-center bg-default/40"
+          >
+            <UIcon
+              name="i-lucide-loader-circle"
+              class="size-8 animate-spin text-primary"
+            />
+          </div>
         </div>
       </UCard>
 

@@ -750,14 +750,14 @@
   },
   "graph": {
     "description": "Customers connected through email, phone, device, card, bank account, address (including similar ones) and transaction references.",
-    "searchCustomer": "Search customer…",
+    "searchCustomer": "Search name, email, phone, IP, device or customer ID…",
     "linkKinds": "Link kinds",
     "depth": "Depth",
     "includeSimilar": "Include similar entities",
     "fit": "Fit view",
     "exportPng": "Export PNG",
     "pickCustomer": "Pick a customer",
-    "pickCustomerHelp": "Search for a customer or open one from an event/case.",
+    "pickCustomerHelp": "Type at least 2 characters in the search box above: a name, email, phone number, IP, device ID or customer ID. Or start from a fraud customer below.",
     "entity": "Entity",
     "similar": "similar",
     "dblClickExpand": "double-click to expand",
@@ -794,7 +794,20 @@
       "address": "Address",
       "ref_transaction": "Ref. transaction",
       "api_client": "API client"
-    }
+    },
+    "startFromFraud": "Start from a labelled fraud customer",
+    "startFromComponents": "No fraud customers yet: pick a sample customer from \"Connected components\" below.",
+    "linkedCustomers": "{n} linked customer(s)",
+    "legend": "Legend",
+    "legendCenter": "Selected customer",
+    "legendFraud": "Fraud customer",
+    "legendLegit": "Legit customer",
+    "legendUnknown": "Customer (no label)",
+    "legendLink": "Shared entity link",
+    "legendSimilar": "Similar entity (score)",
+    "legendPath": "Path to nearest fraud",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen"
   },
   "llm": {
     "newChat": "New chat",

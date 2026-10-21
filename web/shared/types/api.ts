@@ -661,7 +661,8 @@ export interface GraphStats {
 
 export interface GraphSearchResult {
   customers: { id: Uuid, external_id: string, risk_label: 'fraud' | 'legit' | 'unknown' }[]
-  entities: { id: string, kind: LinkKind, label: string, customer_count?: number }[]
+  /** Exact normalised match on email, phone, IP, device, ref transaction or API client (cards/accounts are hashed). */
+  entities: { id: number, kind: LinkKind, display_value: string, customer_count: number, customer_ids: Uuid[] }[]
 }
 
 // ---------------------------------------------------------------- ML

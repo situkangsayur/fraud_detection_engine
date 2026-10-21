@@ -750,14 +750,14 @@
   },
   "graph": {
     "description": "Keterhubungan pelanggan lewat email, telepon, device, kartu, rekening, alamat (termasuk yang mirip) dan referensi transaksi.",
-    "searchCustomer": "Cari pelanggan…",
+    "searchCustomer": "Cari nama, email, telepon, IP, device, atau ID pelanggan…",
     "linkKinds": "Jenis tautan",
     "depth": "Kedalaman",
     "includeSimilar": "Termasuk entitas mirip",
     "fit": "Paskan tampilan",
     "exportPng": "Ekspor PNG",
     "pickCustomer": "Pilih pelanggan",
-    "pickCustomerHelp": "Cari pelanggan atau buka dari halaman event/kasus.",
+    "pickCustomerHelp": "Ketik minimal 2 karakter di kotak pencarian di atas: nama, email, nomor telepon, IP, ID device, atau ID pelanggan. Atau mulai dari pelanggan fraud di bawah.",
     "entity": "Entitas",
     "similar": "mirip",
     "dblClickExpand": "klik ganda untuk memperluas",
@@ -794,7 +794,20 @@
       "address": "Alamat",
       "ref_transaction": "Ref. transaksi",
       "api_client": "API client"
-    }
+    },
+    "startFromFraud": "Mulai dari pelanggan yang berlabel fraud",
+    "startFromComponents": "Belum ada pelanggan fraud: pilih contoh pelanggan dari \"Komponen terhubung\" di bawah.",
+    "linkedCustomers": "{n} pelanggan terhubung",
+    "legend": "Keterangan",
+    "legendCenter": "Pelanggan dipilih",
+    "legendFraud": "Pelanggan fraud",
+    "legendLegit": "Pelanggan legit",
+    "legendUnknown": "Pelanggan (belum berlabel)",
+    "legendLink": "Tautan entitas bersama",
+    "legendSimilar": "Entitas mirip (skor)",
+    "legendPath": "Jalur ke fraud terdekat",
+    "fullscreen": "Layar penuh",
+    "exitFullscreen": "Keluar layar penuh"
   },
   "llm": {
     "newChat": "Chat baru",

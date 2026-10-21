@@ -9,10 +9,7 @@ const el = ref<HTMLDivElement>()
 const colorMode = useColorMode()
 let cy: Core | null = null
 
-const KIND_COLORS: Record<string, string> = {
-  email: '#0ea5e9', phone: '#8b5cf6', device: '#f59e0b', ip: '#64748b', card: '#ec4899',
-  bank_account: '#14b8a6', address: '#84cc16', ref_transaction: '#f97316', api_client: '#6366f1',
-}
+const C = GRAPH_CUSTOMER_COLORS
 
 function elements(): ElementDefinition[] {
   return [
@@ -26,16 +23,17 @@ function elements(): ElementDefinition[] {
 function style() {
   const dark = colorMode.value === 'dark'
   const text = dark ? '#e2e8f0' : '#1e293b'
+  const halo = dark ? '#0f172a' : '#ffffff' // label outline keeps text readable over edges in both themes
   return [
-    { selector: 'node', style: { 'label': 'data(label)', 'font-size': 9, 'color': text, 'text-valign': 'bottom', 'text-margin-y': 4, 'width': 18, 'height': 18, 'border-width': 1, 'border-color': dark ? '#0f172a' : '#fff' } },
-    { selector: 'node[type = "customer"]', style: { 'shape': 'ellipse', 'background-color': '#6366f1', 'width': 26, 'height': 26 } },
-    { selector: 'node[risk = "fraud"]', style: { 'background-color': '#e11d48', 'border-width': 3, 'border-color': '#fda4af' } },
-    { selector: 'node[risk = "legit"]', style: { 'background-color': '#10b981' } },
-    { selector: 'node[center = 1]', style: { 'width': 36, 'height': 36, 'border-width': 4, 'border-color': '#facc15' } },
-    { selector: 'node[type = "entity"]', style: { 'shape': 'round-rectangle', 'background-color': (n: { data: (k: string) => string }) => KIND_COLORS[n.data('kind')] ?? '#94a3b8', 'font-size': 8 } },
+    { selector: 'node', style: { 'label': 'data(label)', 'font-size': 11, 'color': text, 'text-outline-color': halo, 'text-outline-width': 2, 'text-valign': 'bottom', 'text-margin-y': 4, 'width': 20, 'height': 20, 'border-width': 1, 'border-color': halo } },
+    { selector: 'node[type = "customer"]', style: { 'shape': 'ellipse', 'background-color': C.unknown, 'width': 28, 'height': 28 } },
+    { selector: 'node[risk = "fraud"]', style: { 'background-color': C.fraud, 'border-width': 3, 'border-color': '#fda4af' } },
+    { selector: 'node[risk = "legit"]', style: { 'background-color': C.legit } },
+    { selector: 'node[center = 1]', style: { 'width': 38, 'height': 38, 'border-width': 4, 'border-color': C.center } },
+    { selector: 'node[type = "entity"]', style: { 'shape': 'round-rectangle', 'background-color': (n: { data: (k: string) => string }) => graphEntityColor(n.data('kind')), 'font-size': 10 } },
     { selector: 'edge', style: { 'width': 1.5, 'line-color': dark ? '#475569' : '#cbd5e1', 'curve-style': 'bezier' } },
-    { selector: 'edge[kind = "similar"]', style: { 'line-style': 'dashed', 'line-color': '#f59e0b', 'label': 'data(similarity)', 'font-size': 7, 'color': text } },
-    { selector: '.path', style: { 'line-color': '#e11d48', 'width': 4, 'background-color': '#e11d48', 'z-index': 10 } },
+    { selector: 'edge[kind = "similar"]', style: { 'line-style': 'dashed', 'line-color': C.similar, 'label': 'data(similarity)', 'font-size': 9, 'color': text, 'text-outline-color': halo, 'text-outline-width': 2 } },
+    { selector: '.path', style: { 'line-color': C.path, 'width': 4, 'background-color': C.path, 'z-index': 10 } },
     { selector: ':selected', style: { 'overlay-opacity': 0.15, 'overlay-color': '#6366f1' } },
   ]
 }
@@ -72,6 +70,11 @@ function applyPath() {
 }
 
 function fit() { cy?.fit(undefined, 30) }
+// Call after the container changes size (fullscreen toggle): Cytoscape caches its viewport dimensions.
+function resize() {
+  cy?.resize()
+  fit()
+}
 function exportPng() {
   if (!cy) return
   const a = document.createElement('a')
@@ -79,7 +82,7 @@ function exportPng() {
   a.download = 'graph.png'
   a.click()
 }
-defineExpose({ fit, exportPng })
+defineExpose({ fit, resize, exportPng })
 
 onMounted(render)
 watch(() => [props.nodes, props.edges], render, { deep: false })
@@ -91,7 +94,7 @@ onBeforeUnmount(() => cy?.destroy())
 <template>
   <div
     ref="el"
-    class="w-full h-full min-h-[480px] rounded-md bg-elevated/30"
+    class="w-full h-full min-h-[520px] rounded-md bg-elevated/30"
     role="img"
     aria-label="Graph visualisation"
   />
