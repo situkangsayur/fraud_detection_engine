@@ -108,6 +108,24 @@ class PlatformClient:
     async def field_catalog(self, ctx: CallContext) -> Any:
         return await self.request("core", "GET", f"/v1/internal/projects/{ctx.project_id}/field-catalog", ctx)
 
+    async def list_customers(self, ctx: CallContext, params: dict[str, Any]) -> Any:
+        return await self.request("core", "GET", self._p(ctx) + "/customers", ctx, params=params)
+
+    async def get_customer(self, ctx: CallContext, customer_id: str) -> Any:
+        return await self.request("core", "GET", self._p(ctx) + f"/customers/{customer_id}", ctx)
+
+    async def list_events(self, ctx: CallContext, params: dict[str, Any]) -> Any:
+        return await self.request("core", "GET", self._p(ctx) + "/events", ctx, params=params)
+
+    async def get_event(self, ctx: CallContext, event_id: str) -> Any:
+        return await self.request("core", "GET", self._p(ctx) + f"/events/{event_id}", ctx)
+
+    async def list_cases(self, ctx: CallContext, params: dict[str, Any]) -> Any:
+        return await self.request("core", "GET", self._p(ctx) + "/cases", ctx, params=params)
+
+    async def get_case(self, ctx: CallContext, case_id: str) -> Any:
+        return await self.request("core", "GET", self._p(ctx) + f"/cases/{case_id}", ctx)
+
     # ---------------------------------------------------------------- rule-service
     async def list_rules(self, ctx: CallContext, params: dict[str, Any] | None = None) -> Any:
         return await self.request("rule", "GET", self._p(ctx) + "/rules", ctx, params=params)
@@ -143,6 +161,19 @@ class PlatformClient:
             self._p(ctx) + "/graph/components",
             ctx,
             params={"min_size": min_size, "only_with_fraud": "false"},
+        )
+
+    async def graph_search(self, ctx: CallContext, q: str) -> Any:
+        return await self.request("graph", "GET", self._p(ctx) + "/graph/search", ctx, params={"q": q})
+
+    async def fraud_proximity(self, ctx: CallContext, customer_id: str) -> Any:
+        return await self.request(
+            "graph",
+            "GET",
+            self._p(ctx) + f"/graph/customers/{customer_id}/fraud-proximity",
+            ctx,
+            params={"max_depth": 3},
+            accept_statuses=(404,),
         )
 
     async def anomaly_clusters(self, ctx: CallContext) -> Any:

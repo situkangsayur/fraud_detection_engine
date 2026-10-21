@@ -44,6 +44,8 @@ class FakeOllama:
         if not self.script:
             return {"role": "assistant", "content": "(no more script)"}
         msg = self.script.pop(0)
+        if "raise" in msg:
+            raise RuntimeError(msg["raise"])
         if "json" in msg:
             return {"role": "assistant", "content": json.dumps(msg["json"])}
         return {"role": "assistant", **msg}

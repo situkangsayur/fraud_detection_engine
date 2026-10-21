@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import uuid
 from collections.abc import AsyncIterator
@@ -19,10 +20,13 @@ from llm_service.clients.platform import CallContext, PlatformClient
 from llm_service.config import Settings
 from llm_service.db import tenant_session
 from llm_service.errors import not_found
+from llm_service.logging import get_logger
 from llm_service.project_context import ProjectContextLoader
 from llm_service.retrieval.search import RegulationSearch
 
 HISTORY_MESSAGES = 20
+
+log = get_logger(__name__)
 
 
 class ChatService:
@@ -41,6 +45,7 @@ class ChatService:
         self._search = search
         self._proposals = proposals
         self._contexts = contexts
+        self._background: set[asyncio.Task[None]] = set()  # strong refs so running replies are not GC'd
 
     def _open_conversation(
         self, ctx: CallContext, conversation_id: uuid.UUID | None, first_message: str
@@ -65,11 +70,15 @@ class ChatService:
             ]
             return conversation_id, history[-HISTORY_MESSAGES:]
 
-    def _persist(self, ctx: CallContext, conversation_id: uuid.UUID, user_message: str, final: dict[str, Any]) -> None:
+    def _persist_user(self, ctx: CallContext, conversation_id: uuid.UUID, user_message: str) -> None:
+        # Stored before the model runs, so the question is in the history even if generation fails or is slow.
         with tenant_session(ctx.tenant_id) as s:
             repo.add_message(
                 s, tenant_id=ctx.tenant_id, conversation_id=conversation_id, role="user", content=user_message
             )
+
+    def _persist_reply(self, ctx: CallContext, conversation_id: uuid.UUID, final: dict[str, Any]) -> None:
+        with tenant_session(ctx.tenant_id) as s:
             if final.get("tool_calls"):
                 repo.add_message(
                     s,
@@ -93,6 +102,7 @@ class ChatService:
     ) -> tuple[uuid.UUID, list[Message], ToolContext, float]:
         pctx = await self._contexts.load(ctx)
         conv_id, history = await run_in_threadpool(self._open_conversation, ctx, conversation_id, message)
+        await run_in_threadpool(self._persist_user, ctx, conv_id, message)
         system = prompts.render("chat.md.j2", **pctx.prompt_vars())
         messages: list[Message] = [
             {"role": "system", "content": system},
@@ -123,7 +133,7 @@ class ChatService:
         ):
             if ev["type"] == "done":
                 final = ev
-        await run_in_threadpool(self._persist, ctx, conv_id, message, final)
+        await run_in_threadpool(self._persist_reply, ctx, conv_id, final)
         return {
             "conversation_id": str(conv_id),
             "answer": final.get("answer", ""),
@@ -137,16 +147,14 @@ class ChatService:
     ) -> AsyncIterator[dict[str, Any]]:
         conv_id, messages, tool_ctx, temperature = await self._prepare(ctx, conversation_id, message)
         yield {"type": "conversation", "conversation_id": str(conv_id)}
+        # The agent runs in its own task so a client disconnect (closed tab, switching conversation) does not cancel
+        # it: the reply is still persisted and shows up when the conversation is reopened.
+        queue: asyncio.Queue[dict[str, Any] | None] = asyncio.Queue()
+        task = asyncio.create_task(self._run_and_persist(ctx, conv_id, messages, tool_ctx, temperature, queue))
+        self._background.add(task)
+        task.add_done_callback(self._background.discard)
         seen_citations: set[str] = set()
-        async for ev in run_agent(
-            self._ollama,
-            messages,
-            tool_ctx,
-            max_iterations=self._s.chat_max_tool_iterations,
-            tool_timeout=self._s.tool_timeout_s,
-            stream=True,
-            temperature=temperature,
-        ):
+        while (ev := await queue.get()) is not None:
             if ev["type"] == "tool":
                 yield ev
                 for c in tool_ctx.citations:
@@ -154,7 +162,6 @@ class ChatService:
                         seen_citations.add(c["chunk_id"])
                         yield {"type": "citation", **c}
             elif ev["type"] == "done":
-                await run_in_threadpool(self._persist, ctx, conv_id, message, ev)
                 yield {
                     "type": "done",
                     "conversation_id": str(conv_id),
@@ -163,8 +170,41 @@ class ChatService:
                     "citations": ev["citations"],
                     "proposals": ev["proposals"],
                 }
+            elif ev["type"] == "error":
+                raise RuntimeError(ev["detail"])
             else:
                 yield ev
+
+    async def _run_and_persist(
+        self,
+        ctx: CallContext,
+        conv_id: uuid.UUID,
+        messages: list[Message],
+        tool_ctx: ToolContext,
+        temperature: float,
+        queue: asyncio.Queue[dict[str, Any] | None],
+    ) -> None:
+        try:
+            async for ev in run_agent(
+                self._ollama,
+                messages,
+                tool_ctx,
+                max_iterations=self._s.chat_max_tool_iterations,
+                tool_timeout=self._s.tool_timeout_s,
+                stream=True,
+                temperature=temperature,
+            ):
+                if ev["type"] == "done":
+                    await run_in_threadpool(self._persist_reply, ctx, conv_id, ev)
+                queue.put_nowait(ev)
+        except Exception as exc:
+            log.exception("chat_generation_failed", conversation_id=str(conv_id))
+            await run_in_threadpool(
+                self._persist_reply, ctx, conv_id, {"answer": f"[error] The answer could not be generated: {exc}"[:500]}
+            )
+            queue.put_nowait({"type": "error", "detail": str(exc)[:300]})
+        finally:
+            queue.put_nowait(None)
 
     def list_conversations(self, ctx: CallContext, limit: int, offset: int) -> tuple[list[dict[str, Any]], int]:
         with tenant_session(ctx.tenant_id) as s:

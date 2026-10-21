@@ -5,6 +5,7 @@ Run: ``uv run pytest -m integration``. Skipped automatically when docker is unav
 
 from __future__ import annotations
 
+import json
 import shutil
 import socket
 import subprocess
@@ -318,6 +319,35 @@ def test_chat_persists_conversation_with_citations(
     )
     roles = [m["role"] for m in ollama.requests[-1]["messages"]]
     assert roles == ["system", "user", "assistant", "user"]
+
+
+def test_chat_stream_persists_question_and_reply_even_on_failure(
+    client: TestClient, it_settings: Settings, ollama: FakeOllama
+) -> None:
+    analyst = auth(it_settings, role="analyst", tenant=TENANT_A, project=PROJECT_A)
+    base = f"/api/v1/projects/{PROJECT_A}/llm"
+
+    def conversation_id(sse: str) -> str:
+        line = next(ln for ln in sse.splitlines() if ln.startswith("data:") and "conversation_id" in ln)
+        return str(json.loads(line[5:])["conversation_id"])
+
+    ollama.push({"content": "Halo, situasi aman."})
+    r = client.post(f"{base}/chat/stream", headers=analyst, json={"message": "Status?"})
+    assert r.status_code == 200 and "event: done" in r.text
+    detail = client.get(f"{base}/conversations/{conversation_id(r.text)}", headers=analyst).json()
+    assert [(m["role"], m["content"].strip()) for m in detail["messages"]] == [
+        ("user", "Status?"),
+        ("assistant", "Halo, situasi aman."),
+    ]
+
+    # a failing model still leaves the question and an explicit error reply in the history
+    ollama.push({"raise": "model timed out"})
+    r = client.post(f"{base}/chat/stream", headers=analyst, json={"message": "Lagi?"})
+    assert "event: error" in r.text
+    detail = client.get(f"{base}/conversations/{conversation_id(r.text)}", headers=analyst).json()
+    assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+    assert detail["messages"][0]["content"] == "Lagi?"
+    assert "model timed out" in detail["messages"][1]["content"]
 
 
 def test_fraud_situation_report_degrades_when_sources_down(
