@@ -19,9 +19,12 @@ const dq = useDebounced(q)
 // Two sources: core-api customers (external id, name, email) and graph entities (email, phone, IP, device, ref id,
 // exact normalised match). Picking an entity focuses the most recently linked customer.
 type SearchItem = { label: string, value?: string, description?: string, icon?: string, type?: 'label' }
+// Labels of customers seen in search results or the starter list, so the picked customer keeps a readable label
+// (external id) after the search term is cleared.
+const knownLabels = new Map<string, string>()
 const { data: hits } = await useAsyncData<SearchItem[][]>(`graph-search-${pid.value}`, async () => {
   const term = dq.value.trim()
-  if (term.length < 2) return customerId.value ? [[{ label: shortId(customerId.value), value: customerId.value }]] : []
+  if (term.length < 2) return customerId.value ? [[{ label: knownLabels.get(customerId.value) ?? shortId(customerId.value), value: customerId.value }]] : []
   const [g, c] = await Promise.all([
     api.get<GraphSearchResult>(`${apiBase.value}/graph/search`, { query: { q: term }, silent: true }).catch(() => null),
     api.get<Page<Customer>>(`${apiBase.value}/customers`, { query: { q: term, page_size: 10 }, silent: true }).catch(() => null),
@@ -40,14 +43,17 @@ const { data: hits } = await useAsyncData<SearchItem[][]>(`graph-search-${pid.va
     description: t('graph.linkedCustomers', { n: e.customer_count }),
     icon: 'i-lucide-link',
   }))
+  for (const c of customers.values()) knownLabels.set(c.value!, c.label)
+  for (const e of entities) if (!knownLabels.has(e.value!)) knownLabels.set(e.value!, e.label)
   const groups: SearchItem[][] = []
   if (customers.size) groups.push([{ type: 'label', label: t('graph.customers') }, ...customers.values()])
   if (entities.length) groups.push([{ type: 'label', label: t('graph.entities') }, ...entities])
   return groups
-}, { default: () => [], watch: [dq] })
+}, { default: () => [], watch: [dq, customerId] })
 
 // Starting points for the empty state: labelled fraud customers, so there is always something to click.
 const { data: fraudStarters } = await useAsyncData<Customer[]>(`graph-starters-${pid.value}`, () => api.get<Page<Customer>>(`${apiBase.value}/customers`, { query: { risk_label: 'fraud', page_size: 8 }, silent: true }).then(p => p.items).catch(() => []), { default: () => [] as Customer[] })
+watchEffect(() => fraudStarters.value.forEach(c => knownLabels.set(c.id, c.external_id)))
 
 const graph = ref<Neighborhood>({ nodes: [], edges: [] })
 const proximity = ref<FraudProximity | null>(null)
@@ -132,7 +138,7 @@ onBeforeUnmount(() => document.removeEventListener('fullscreenchange', onFullscr
         <USelect
           v-model="opts.depth"
           :items="[1, 2, 3].map(d => ({ label: `${t('graph.depth')} ${d}`, value: d }))"
-          class="w-28"
+          class="w-36"
         />
         <USwitch
           v-model="opts.include_similar"

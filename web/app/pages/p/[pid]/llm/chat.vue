@@ -39,11 +39,17 @@ async function send(text?: string) {
   messages.value.push(reply)
   streaming.value = true
   abort = new AbortController()
+  status.value = t('llm.status.thinking')
+  elapsed.value = 0
+  const timer = setInterval(() => elapsed.value++, 1000)
   scrollDown()
   try {
     await api.stream(`${apiBase.value}/llm/chat/stream`, { conversation_id: conversationId.value ?? undefined, message }, (event, data) => {
       if (event === 'token') reply.content += (data as { content?: string, text?: string }).content ?? (data as { text?: string }).text ?? ''
-      else if (event === 'tool') reply.tool_calls!.push(data as ToolCallSummary)
+      else if (event === 'tool') {
+        reply.tool_calls!.push(data as ToolCallSummary)
+        status.value = t('llm.status.analysing')
+      }
       else if (event === 'citation') reply.citations!.push(data as Citation)
       else if (event === 'done' && !reply.content && (data as { answer?: string }).answer) {
         reply.content = (data as { answer: string }).answer
@@ -61,11 +67,19 @@ async function send(text?: string) {
     if ((err as Error).name !== 'AbortError') reply.content ||= t('errors.generic')
   }
   finally {
+    clearInterval(timer)
     streaming.value = false
     abort = null
     refreshConvs()
   }
 }
+
+// Live progress while the model works: the reply text may only arrive at the end (tool rounds are not streamed by
+// every Ollama version), so show what is happening and for how long.
+const status = ref('')
+const elapsed = ref(0)
+const { te } = useI18n()
+const toolLabel = (name: string) => (te(`llm.tools.${name}`) ? t(`llm.tools.${name}`) : name)
 function stop() { abort?.abort() }
 </script>
 
@@ -168,14 +182,29 @@ function stop() { abort?.abort() }
                       color="neutral"
                       variant="outline"
                       size="xs"
-                      icon="i-lucide-wrench"
-                      class="fp-mono"
+                      :icon="tc.ok === false ? 'i-lucide-circle-alert' : 'i-lucide-check'"
                     >
-                      {{ tc.name }}
+                      {{ toolLabel(tc.name) }}
                     </UBadge>
                   </UTooltip>
                 </div>
-                <MarkdownView :source="m.content || '…'" />
+                <div
+                  v-if="streaming && i === messages.length - 1 && !m.content"
+                  class="flex items-center gap-2 text-sm text-muted"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <UIcon
+                    name="i-lucide-loader-circle"
+                    class="size-4 animate-spin text-primary"
+                  />
+                  <span>{{ status }}</span>
+                  <span class="tabular-nums">{{ elapsed }} {{ t('llm.status.seconds') }}</span>
+                </div>
+                <MarkdownView
+                  v-else
+                  :source="m.content || '…'"
+                />
                 <div
                   v-if="m.citations?.length"
                   class="mt-3 border-t border-default pt-2 space-y-1"

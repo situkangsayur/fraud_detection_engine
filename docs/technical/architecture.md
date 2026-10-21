@@ -364,6 +364,7 @@ Gateway routes (`deploy/gateway/dynamic.yml`, all under `/api/v1`; higher priori
 | `/projects/{pid}/graph` | graph-service | 100 | |
 | `/projects/{pid}/ml`, `/ml/` | ml-service | 100 | |
 | `/projects/{pid}/llm`, `/tenants/{tid}/regulations` | llm-service | 100 | 200 MB body |
+| `/projects/{pid}/llm/chat/stream` | llm-service | 110 | **no buffering middleware** (it would hold SSE events until the reply ends); message length capped by llm-service (8 000 chars) |
 | `/ingest/` | core-api | 90 | rate limit 500/s (burst 1000) |
 | `/auth/` | core-api | 90 | rate limit 5/s (burst 20) |
 | everything else under `/api/v1/` (`/me`, `/tenants`, `/projects`, members, settings, data sources, events, customers, decisions, cases, labels, analytics, audit, score, field-catalog) | core-api | 10 | |

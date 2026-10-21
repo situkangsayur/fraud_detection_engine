@@ -884,7 +884,34 @@
       "removed": "Dihapus",
       "modified": "Diubah"
     },
-    "impactHint": "Jalankan analisis Dampak regulasi di tiap proyek untuk melihat rule yang terdampak."
+    "impactHint": "Jalankan analisis Dampak regulasi di tiap proyek untuk melihat rule yang terdampak.",
+    "status": {
+      "thinking": "Sedang berpikir…",
+      "analysing": "Menganalisis hasil…",
+      "seconds": "dtk"
+    },
+    "tools": {
+      "search_regulations": "Mencari regulasi",
+      "list_rules": "Melihat daftar rule",
+      "get_rule": "Membaca rule",
+      "get_rules_performance": "Mengecek performa rule",
+      "validate_rule_definition": "Memvalidasi rule",
+      "backtest_rule_definition": "Backtest rule",
+      "get_analytics_overview": "Membaca analitik",
+      "get_feature_drift": "Mengecek drift fitur",
+      "get_typology_stats": "Membaca tipologi fraud",
+      "get_anomaly_clusters": "Membaca klaster anomali",
+      "get_graph_components": "Membaca komponen graph",
+      "get_graph_communities": "Membaca komunitas graph",
+      "get_project_context": "Membaca konteks project",
+      "search_customers": "Mencari pelanggan",
+      "get_customer": "Membuka profil pelanggan",
+      "search_events": "Mencari transaksi",
+      "get_event": "Membuka transaksi",
+      "search_cases": "Mencari kasus",
+      "get_case": "Membuka kasus",
+      "create_rule_proposal": "Membuat usulan rule (pending)"
+    }
   },
   "datasources": {
     "description": "Hubungkan data Anda apa adanya (webhook, file, database). Sistem membaca struktur dan menyarankan mapping — tanpa ubah kode.",

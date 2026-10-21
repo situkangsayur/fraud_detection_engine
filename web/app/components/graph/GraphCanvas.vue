@@ -16,7 +16,7 @@ function elements(): ElementDefinition[] {
     ...props.nodes.map(n => ({
       data: { id: n.id, label: n.label, type: n.type, kind: n.kind ?? '', risk: n.risk_label ?? 'unknown', center: n.is_center ? 1 : 0, raw: n },
     })),
-    ...props.edges.map(e => ({ data: { id: e.id, source: e.source, target: e.target, kind: e.kind, similarity: e.similarity ?? 1 } })),
+    ...props.edges.map(e => ({ data: { id: e.id, source: e.source, target: e.target, kind: e.kind, similarity: Number(e.similarity ?? 1).toFixed(2) } })),
   ]
 }
 

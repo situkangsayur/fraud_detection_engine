@@ -884,7 +884,34 @@
       "removed": "Removed",
       "modified": "Modified"
     },
-    "impactHint": "Run a Regulation impact analysis in each project to see affected rules."
+    "impactHint": "Run a Regulation impact analysis in each project to see affected rules.",
+    "status": {
+      "thinking": "Thinking…",
+      "analysing": "Analysing the results…",
+      "seconds": "s"
+    },
+    "tools": {
+      "search_regulations": "Searching regulations",
+      "list_rules": "Listing rules",
+      "get_rule": "Reading a rule",
+      "get_rules_performance": "Checking rule performance",
+      "validate_rule_definition": "Validating the rule",
+      "backtest_rule_definition": "Backtesting the rule",
+      "get_analytics_overview": "Reading analytics",
+      "get_feature_drift": "Checking feature drift",
+      "get_typology_stats": "Reading fraud typologies",
+      "get_anomaly_clusters": "Reading anomaly clusters",
+      "get_graph_components": "Reading graph components",
+      "get_graph_communities": "Reading graph communities",
+      "get_project_context": "Reading project context",
+      "search_customers": "Searching customers",
+      "get_customer": "Opening customer profile",
+      "search_events": "Searching transactions",
+      "get_event": "Opening a transaction",
+      "search_cases": "Searching cases",
+      "get_case": "Opening a case",
+      "create_rule_proposal": "Creating a pending rule proposal"
+    }
   },
   "datasources": {
     "description": "Connect your data as it is (webhook, file, database). The system reads its structure and suggests a mapping — no code changes.",

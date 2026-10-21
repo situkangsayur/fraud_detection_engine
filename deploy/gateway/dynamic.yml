@@ -63,6 +63,14 @@ http:
       priority: 100
       service: llm-service
       middlewares: [lan-only, secure-headers, body-limit-upload]
+    # SSE chat: Traefik's buffering middleware also buffers the *response*, which would hold every event until
+    # the answer is complete. No body limit here; llm-service caps the message (ChatBody max_length=8000).
+    llm-chat-stream:
+      entryPoints: [web]
+      rule: PathRegexp(`^/api/v1/projects/[^/]+/llm/chat/stream$`)
+      priority: 110
+      service: llm-service
+      middlewares: [lan-only, secure-headers]
     ingest-service:
       entryPoints: [web]
       rule: PathRegexp(`^/api/v1/projects/[^/]+/data-sources/[^/]+/(inspect|jobs)(/|$)`) || PathRegexp(`^/api/v1/projects/[^/]+/ingest-jobs(/|$)`)
