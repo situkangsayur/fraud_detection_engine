@@ -12,6 +12,10 @@ defineProps<{ title: string, description?: string, id?: string }>()
         </template>
         <template #right>
           <slot name="actions" />
+          <div class="flex items-center gap-1 ml-1 pl-2 border-l border-default">
+            <ThemeSwitch compact />
+            <UserMenu placement="header" />
+          </div>
         </template>
       </UDashboardNavbar>
       <UDashboardToolbar v-if="$slots.toolbar">

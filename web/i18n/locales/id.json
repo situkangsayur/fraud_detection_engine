@@ -137,7 +137,11 @@
     "type": "Tipe",
     "typologies": "Tipologi",
     "typology": "Tipologi",
-    "updated": "Diperbarui"
+    "updated": "Diperbarui",
+    "theme": "Tema",
+    "theme_system": "Sistem",
+    "theme_light": "Terang",
+    "theme_dark": "Gelap"
   },
   "status": {
     "approve": "Setujui",
@@ -1076,5 +1080,20 @@
     "created": "Pengguna dibuat",
     "passwordHelp": "Minimal 12 karakter",
     "projectRolesHint": "Peran per proyek diatur di menu Anggota tiap proyek."
+  },
+  "profile": {
+    "title": "Profil saya",
+    "description": "Akun, peran per proyek, dan preferensi tampilan Anda.",
+    "tenant": "Tenant",
+    "tenantRole": "Peran tenant",
+    "platformAdmin": "Admin platform",
+    "lastLogin": "Login terakhir",
+    "appearance": "Tampilan",
+    "themeHelp": "\"Sistem\" mengikuti pengaturan perangkat. Tombol matahari/bulan di kanan atas setiap halaman untuk ganti cepat.",
+    "projects": "Proyek dan peran",
+    "stage": "Tahap",
+    "noProjects": "Anda belum menjadi anggota proyek mana pun.",
+    "security": "Keamanan dan keluar",
+    "passwordHelp": "Untuk mengganti password, hubungi admin tenant (halaman Pengguna tenant). Keluar mengakhiri sesi di browser ini."
   }
 }

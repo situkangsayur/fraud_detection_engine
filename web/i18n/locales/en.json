@@ -137,7 +137,11 @@
     "type": "Type",
     "typologies": "Typologies",
     "typology": "Typology",
-    "updated": "Updated"
+    "updated": "Updated",
+    "theme": "Theme",
+    "theme_system": "System",
+    "theme_light": "Light",
+    "theme_dark": "Dark"
   },
   "status": {
     "approve": "Approve",
@@ -1076,5 +1080,20 @@
     "created": "User created",
     "passwordHelp": "At least 12 characters",
     "projectRolesHint": "Per-project roles are managed in each project's Members page."
+  },
+  "profile": {
+    "title": "My profile",
+    "description": "Your account, project roles and display preferences.",
+    "tenant": "Tenant",
+    "tenantRole": "Tenant role",
+    "platformAdmin": "Platform admin",
+    "lastLogin": "Last sign-in",
+    "appearance": "Appearance",
+    "themeHelp": "\"System\" follows your device setting. The sun/moon button at the top right of every page switches quickly.",
+    "projects": "Projects and roles",
+    "stage": "Stage",
+    "noProjects": "You are not a member of any project yet.",
+    "security": "Security and sign-out",
+    "passwordHelp": "To change your password, ask a tenant admin (Tenant users page). Signing out ends this session on this browser."
   }
 }

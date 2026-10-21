@@ -1,22 +1,35 @@
 <script setup lang="ts">
+// Account menu: in the sidebar footer (default) and as an avatar button in every page header (`placement="header"`).
 import type { DropdownMenuItem } from '@nuxt/ui'
+import type { ThemePreference } from '~/composables/useAccount'
 
-defineProps<{ collapsed?: boolean }>()
+const props = defineProps<{ collapsed?: boolean, placement?: 'sidebar' | 'header' }>()
 const { t, locale, locales, setLocale } = useI18n()
-const colorMode = useColorMode()
 const session = useSessionStore()
-const { clear } = useUserSession()
+const { logout, theme, themeIcon } = useAccount()
 
-async function logout() {
-  await $fetch('/api/auth/logout', { method: 'POST', headers: { 'x-requested-with': 'fraud-web' } }).catch(() => undefined)
-  await clear()
-  session.set(null)
-  await navigateTo('/login')
-}
+const roleLabel = computed(() => {
+  const u = session.user
+  if (!u) return ''
+  if (u.is_platform_admin) return t('profile.platformAdmin')
+  return t(`roles.${u.tenant_role}`)
+})
 
 const items = computed<DropdownMenuItem[][]>(() => [
-  [{ label: session.user?.email ?? '', type: 'label' }],
+  [{ label: session.user?.full_name ?? '', description: `${session.user?.email ?? ''} · ${roleLabel.value}`, type: 'label' }],
   [
+    { label: t('profile.title'), icon: 'i-lucide-user-round', to: '/profile' },
+    {
+      label: t('common.theme'),
+      icon: themeIcon(theme.value),
+      children: (['system', 'light', 'dark'] as ThemePreference[]).map(v => ({
+        label: t(`common.theme_${v}`),
+        icon: themeIcon(v),
+        type: 'checkbox' as const,
+        checked: theme.value === v,
+        onSelect: (e: Event) => { e.preventDefault(); theme.value = v },
+      })),
+    },
     {
       label: t('common.language'),
       icon: 'i-lucide-languages',
@@ -27,29 +40,25 @@ const items = computed<DropdownMenuItem[][]>(() => [
         onSelect: (e: Event) => { e.preventDefault(); setLocale(l.code) },
       })),
     },
-    {
-      label: colorMode.value === 'dark' ? t('common.lightMode') : t('common.darkMode'),
-      icon: colorMode.value === 'dark' ? 'i-lucide-sun' : 'i-lucide-moon',
-      onSelect: (e: Event) => { e.preventDefault(); colorMode.preference = colorMode.value === 'dark' ? 'light' : 'dark' },
-    },
   ],
   [{ label: t('about.title'), icon: 'i-lucide-info', to: '/about' }],
   [{ label: t('actions.logout'), icon: 'i-lucide-log-out', color: 'error' as const, onSelect: logout }],
 ])
+const inHeader = computed(() => props.placement === 'header')
 </script>
 
 <template>
   <UDropdownMenu
     :items="items"
-    :content="{ align: 'start', side: 'top' }"
-    class="w-full"
+    :content="inHeader ? { align: 'end', side: 'bottom' } : { align: 'start', side: 'top' }"
+    :class="inHeader ? '' : 'w-full'"
   >
     <UButton
       color="neutral"
       variant="ghost"
-      block
+      :block="!inHeader"
       :square="collapsed"
-      class="justify-start"
+      :class="inHeader ? 'gap-1.5' : 'justify-start'"
       :aria-label="t('common.account')"
     >
       <UAvatar
@@ -57,9 +66,14 @@ const items = computed<DropdownMenuItem[][]>(() => [
         size="xs"
       />
       <span
-        v-if="!collapsed"
-        class="truncate text-sm"
+        v-if="!collapsed && !inHeader"
+        class="truncate text-sm flex-1 text-left"
       >{{ session.user?.full_name }}</span>
+      <UIcon
+        v-if="!collapsed"
+        :name="inHeader ? 'i-lucide-chevron-down' : 'i-lucide-chevrons-up-down'"
+        class="size-4 text-muted shrink-0"
+      />
     </UButton>
   </UDropdownMenu>
 </template>
