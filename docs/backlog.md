@@ -3,7 +3,7 @@
 Format: **Epic → Story**, prioritas **P0** (wajib untuk v1), **P1** (sebaiknya ada di v1 / segera setelahnya), **P2** (roadmap).
 Status: `todo` · `in-progress` · `done` · `blocked`. Update file ini setiap kali ada perubahan scope.
 
-Terakhir diperbarui: 2026-10-07.
+Terakhir diperbarui: 2026-10-21. Roadmap (fase & urutan): [`roadmap.md`](roadmap.md). Riwayat: [`CHANGELOG.md`](CHANGELOG.md).
 
 ---
 
@@ -27,10 +27,60 @@ Terakhir diperbarui: 2026-10-07.
 | E13 Dokumentasi | P0 | done |
 | E14 Kualitas & testing | P0 | done |
 | E15 Roadmap pasca-v1 | P1/P2 | todo |
+| E16 Multi-agent & fitur agentic (F1–F9) | P1/P2 | todo (desain selesai: `technical/multi-agent.md`) |
+| E17 Operasional repo & dokumentasi terpadu | P0 | in-progress (stack dipindah + autostart systemd: done) |
+| E18 AI Console: agent & konfigurasi AI (multi-model, provider, API key) | P1 | todo (PRD + TRD selesai) |
 
 ---
 
-## Tahap saat ini & langkah berikutnya (per 2026-10-07)
+## Tahap saat ini & langkah berikutnya (per 2026-10-21)
+
+**Tahap:** sama seperti 2026-10-13 (dokumentasi + desain, belum ada kode baru). Perubahan 2026-10-21:
+- [x] Stack `fraud-platform` + `fraud-eval` + cron dipindah ke checkout deploy
+      `~/own_project/deployment/fraud_detection_engine` (dulu `~/own_project/apps/fraud_detection_engine`); checkout
+      dev/docs tetap `~/own_project/fraud_detection_engine`. Lihat `guides/operations-runbook.md` §9.
+- [x] Autostart saat boot: systemd user unit `fraud-platform.service` (enabled, linger aktif).
+- [x] PRD + TRD **AI Console** (kelola agent, model per agent, multi-model + fallback, provider Ollama/Gemini,
+      API key terenkripsi): `business/prd-agent-ai-console.md`, `technical/trd-agent-ai-console.md` → epic E18.
+- [ ] **Disk nvda11-gpu 100%** (sisa ±6 GB) → bersihkan sebelum pengembangan apa pun (OpenSearch blok di 95%).
+- [x] Push `eval/public-datasets` ke origin (2026-10-21).
+- [ ] Driver GPU masih gagal (kernel 7.0.0-38), Ollama masih 0.6.8.
+
+Langkah berikutnya (urut): bersihkan disk → driver GPU → uji LLM live (baseline) → **E18 R1** (AI Console dasar) →
+E18 R2 (agent profile + multi-model) → E16 MVP multi-agent di atas konfigurasi E18.
+
+## Tahap 2026-10-13
+
+**Tahap:** demo publik `fds.hendrikarisma.my.id` berjalan di nvda11-gpu dari commit `07ee765`. Fokus sekarang:
+**dokumentasi terpadu + desain multi-agent** (belum ada pengembangan kode baru).
+
+Status per 2026-10-13:
+- [x] Checkout kanonik di nvda11-gpu: `~/own_project/fraud_detection_engine` = v2 `07ee765` (sama dengan yang
+      ter-deploy). Sisa v1 dipindah ke `~/own_project/_archive/`.
+- [x] ~~Stack `fraud-platform` + `fraud-eval` dan cron reset masih memakai `~/own_project/apps/fraud_detection_engine`~~
+      (selesai 2026-10-21, ke `~/own_project/deployment/fraud_detection_engine`) → pindahkan sesuai `guides/operations-runbook.md` (butuh downtime ±5–10 menit, dijalankan oleh pemilik).
+- [ ] Hapus clone tidak terpakai di p14s (`~/own_project/fraud_detection_engine`, `~/own_project/apps/fraud_detection_engine`
+      + stack-nya); vault Obsidian di p14s tetap.
+- [ ] Push branch `eval/public-datasets` (2 commit hasil evaluasi 5 dataset publik) ke origin.
+- [ ] Driver GPU nvda11-gpu masih belum jalan (`nvidia-smi` gagal, kernel 7.0.0-38) → LLM lokal (qwen3:8b) di CPU.
+- [ ] Gemini: akun pemilik bermasalah → demo memakai Ollama lokal dulu.
+- [ ] **P0 keamanan demo publik:** `DEMO_LOGIN_HINTS` di `.env` ikut menampilkan akun **platform admin** di halaman
+      login publik (dan hint memakai password yang sama) → hapus hint platform admin, ganti password, pertimbangkan
+      peran viewer untuk akun demo.
+- [ ] **P1 keamanan:** chat LLM hanya butuh peran `viewer`, sedangkan tool `create_rule_proposal` memanggil
+      rule-service dengan token internal → viewer bisa membuat proposal pending lewat chat. Batasi tool tulis ke peran
+      ≥ analyst (lihat `technical/llm-agentic.md` §8).
+- [ ] Disk nvda11-gpu ±94% (OpenSearch memblokir index pada 95%; snapshot master ±600 MB) → bersihkan/perluas.
+- [ ] Ollama host versi 0.6.8 (`OLLAMA_THINK` butuh ≥ 0.9; saat ini tertutup oleh `/no_think`) → upgrade.
+
+Langkah berikutnya (urut):
+1. Selesaikan dokumentasi terpadu (E17) dan review desain multi-agent + UX + data uji (E16).
+2. Perbaiki driver GPU (blocker utama demo multi-agent).
+3. Uji LLM live tuntas (chat + `recommend-rules` → proposal) sebagai baseline single-agent.
+4. Quick wins deteksi: threshold per project (E3 P1), rule money mule (E14 P1).
+5. Implementasi MVP demo multi-agent (E16: F1 + Critic/`verify_citation` + UI Agent Runs).
+
+## Tahap sebelumnya (per 2026-10-07)
 
 **Tahap:** v1 berjalan sebagai demo publik di nvda11-gpu, CI hijau, PR #1 (`revamp/rust-nuxt-stack` → `master`) terbuka.
 
@@ -220,3 +270,92 @@ Langkah berikutnya:
 - P1 Enrichment eksternal: IP geolocation/ASN, BIN database, email/phone reputation.
 - P2 Federated/consortium blacklist antar tenant (opt-in, hashed).
 - P2 Auto-tuning threshold berbasis biaya (cost-sensitive: nilai fraud vs friksi customer).
+- P2 Lihat juga peningkatan engine deteksi pada bagian "Gap terukur" di bawah (kalibrasi skor, stacking fusion,
+  graph temporal/label propagation, GNN, sequence model ATO, active learning, delayed labels, fairness check).
+
+## E16 — Multi-agent & fitur agentic
+Desain: [`technical/multi-agent.md`](technical/multi-agent.md) · UX: [`technical/ux-design.md`](technical/ux-design.md) ·
+data uji: [`technical/test-data.md`](technical/test-data.md). Kondisi sekarang: **satu** tool-calling agent (14 tools) +
+pipeline analisis terstruktur (lihat [`technical/llm-agentic.md`](technical/llm-agentic.md)). Governance tidak berubah:
+satu-satunya aksi tulis tetap `create_rule_proposal` → maker–checker → shadow.
+
+Fondasi (MVP demo):
+- [ ] P1 Registry agent (`agent/registry.py`): prompt, tools (least privilege), model, budget per agent; `run_agent` menerima `allowed_tools`.
+- [ ] P1 Run state + store: migrasi `llm.agent_runs`, `llm.agent_steps` (RLS), resume & replay.
+- [ ] P1 Orchestrator deterministik (state machine Python, tanpa framework) + budget langkah/token/waktu/revisi.
+- [ ] P1 Tool baru `verify_citation` (deterministik: pasal ada, kutipan cocok dengan chunk) + `get_regulation_article`.
+- [ ] P1 API `agent-runs` (start, get, list, cancel) + SSE event stream; route di gateway.
+- [ ] P1 UI Nuxt: halaman Agent Runs (timeline live) + jejak multi-agent di Proposal Review.
+- [ ] P1 Metrik Prometheus agent (`agent_steps_total`, `agent_run_duration_seconds`, `critic_verdict_total`, …).
+- [ ] P1 Test: Ollama di-mock (unit) + Postgres/OpenSearch asli (integration); skenario demo dari `test-data.md`.
+
+Fitur:
+- [ ] P1 **F1 Regulation-to-Rule**: Regulation ∥ Analytics ∥ Pattern → Designer → Simulator → Critic (↺ maks 3) → Proposer.
+- [ ] P1 **F3 Case Investigation Copilot**: narasi investigasi per case (AI-generated, PII di-mask, tidak memberi label).
+- [ ] P1 **F5 Threshold & Ruleset Tuning Agent**: sweep deterministik + penjelasan trade-off; proposal jenis `settings_change`.
+- [ ] P1 **F2 Rule Health Review** terjadwal (rule mati/berisik/trapped/redundant) + laporan mingguan; flag rule `mandatory`.
+- [ ] P2 **F4 Pattern-to-Rule** dari cluster anomali & komunitas graph (fokus money mule).
+- [ ] P2 **F7 Regulation Change Watcher** (diff per pasal → rule terdampak); butuh relasi `rule ↔ citation` (traceability).
+- [ ] P2 **F8 Multi-agent chat** (router ke agent spesialis; pertanyaan berat → agent run).
+- [ ] P2 **F9 Compliance Gap Report** (matriks pasal × rule aktif).
+- [ ] P3 **F6 Red-team vs Blue-team** (riset; event sintetis di tenant eksperimen saja).
+
+Evaluasi & riset:
+- [ ] P1 Golden set regulasi POJK 12/2024 (50–100 Q&A + pasal acuan) + 30 skenario rule; dijalankan di CI (mock) dan terjadwal (live).
+- [ ] P2 Eksperimen ablation B0–M3 (≥ 5 seed) → paper kedua.
+
+## E17 — Operasional repo & dokumentasi terpadu
+- [x] P0 Checkout kanonik `~/own_project/fraud_detection_engine` di nvda11-gpu = versi ter-deploy (`07ee765`).
+- [x] P0 Pindahkan stack `fraud-platform`/`fraud-eval` + cron ke checkout deploy terpisah `~/own_project/deployment/fraud_detection_engine` (2026-10-21; runbook §9).
+- [x] P1 Autostart stack saat boot: systemd user unit `fraud-platform.service` (2026-10-21).
+- [ ] P0 Bersihkan disk nvda11-gpu (100%, 2026-10-21).
+- [ ] P0 Hapus clone tidak terpakai di p14s.
+- [x] P0 Push `eval/public-datasets` (2026-10-21).
+- [ ] P1 Putuskan merge `eval/public-datasets` ke `revamp/rust-nuxt-stack`.
+- [x] P0 Dokumentasi terpadu: index `docs/README.md`, dokumen bisnis baru (use cases, governance, glosarium, script demo),
+      dokumen teknis diverifikasi terhadap kode, `roadmap.md`, `CHANGELOG.md`, runbook operasional.
+- [x] P1 Sinkron `docs/` → vault Obsidian (p14s) via `docs/sync-to-vault.sh` (manual setelah perubahan docs).
+- [x] P1 PRD & TRD AI Console (2026-10-21).
+- [ ] P1 Review & merge PR #1 (`revamp/rust-nuxt-stack` → `master`).
+
+## E18 — AI Console: agent & konfigurasi AI
+PRD: [`business/prd-agent-ai-console.md`](business/prd-agent-ai-console.md) · TRD:
+[`technical/trd-agent-ai-console.md`](technical/trd-agent-ai-console.md). Hari ini provider/model global lewat `.env`;
+`llm_config.chat_model` per project berupa teks bebas (default `qwen2.5:7b-instruct` tidak terpasang).
+
+R1 — AI Console dasar:
+- [ ] P1 Migrasi `llm.ai_providers`, `ai_credentials`, `ai_models`, `tenant_ai_policy` (+ RLS, baris platform `tenant_id NULL`).
+- [ ] P1 Enkripsi API key AES-256-GCM (`LLM_SECRETS_KEY`), write-only, `last4`, rotasi, redaksi log.
+- [ ] P1 `ChatClient` protocol + `OpenAICompatClient` (Gemini jadi subclass) + `ChatClientRegistry` per provider; fallback ke env bila tabel kosong.
+- [ ] P1 Test connection + discovery model (Ollama `/api/tags`, OpenAI `/models`).
+- [ ] P1 Resolver project → tenant → platform → env + cache TTL + `LISTEN/NOTIFY` (berlaku tanpa restart).
+- [ ] P1 API §6 TRD + audit `core.audit_log` (key di-redact).
+- [ ] P1 UI `/admin/ai` (platform) dan `/tenant/ai` (policy provider eksternal + key tenant).
+- [ ] P1 Ganti field teks `chat_model` di `projects/new.vue` dengan pemilih model; migrasi `llm_config.chat_model`.
+- [ ] P1 Seed provider platform "nvda11-gpu ollama" (`host.docker.internal:11434`) + `qwen3:8b`.
+
+R2 — Agent profile & multi-model:
+- [ ] P1 `llm.agent_profiles` (per scope × agent): model utama, fallback berurutan, params, tools (subset), kill switch.
+- [ ] P1 `run_agent(agent_name)` memakai config efektif; fallback otomatis + `fallback_from`.
+- [ ] P1 Pencatatan pemakaian `llm.llm_calls` (token, latensi, outcome) + metrik Prometheus; semaphore GPU per provider lokal.
+- [ ] P1 UI project: bagian "AI & agents" di settings, label "Efektif: … (dari …)"; badge model di chat/laporan.
+- [ ] P2 Halaman Usage + batas token bulanan per tenant.
+- [ ] P2 Prompt tambahan & daftar tool agent lewat maker–checker (versi pending → approve).
+- [ ] P2 Provider tambahan OpenAI-compatible (Claude/vLLM), tabel biaya.
+
+R3 = E16 MVP multi-agent memakai konfigurasi R2.
+
+## Gap terukur (dasar prioritas)
+
+Sumber angka: [`technical/evaluation.md`](technical/evaluation.md) (dataset riset 2026-10-07 + 5 dataset publik).
+
+| ID | Gap | Angka | Ditangani oleh |
+|---|---|---|---|
+| G1 | Threshold 50 seragam terlalu rendah | FPR checkout 23%, promo 36%, PaySim 46% | E3 P1 threshold per project, F5 |
+| G2 | Money mule | recall@80 = 0,35 | E14 P1 rule fan-in/fan-out, F4 |
+| G3 | Graph tanpa fraudster terkonfirmasi | AUC graph 0,5 (Sparkov/PaySim/SAML-D); coverage post-payment 0,2% | label customer di tenant riset, label propagation, E6 |
+| G4 | Template rule tidak general | AUC rules SAML-D 0,5, PaySim 0,585 | F1, F2 (rule per dataset/project) |
+| G5 | Cash withdrawal (SAML-D) | recall 0,06 | fitur lokasi ATM/agen atau diterima sebagai keterbatasan |
+| G6 | Akun tanpa histori (PaySim) | velocity tidak bekerja | fitur cold-start, peer-group baseline |
+| G7 | LLM lambat & berhalusinasi | qwen3:8b CPU ~0,5 tok/s; pasal karangan | driver GPU, Critic + `verify_citation` |
+| G8 | Kasus returns sedikit | 7 fraud online | replikasi seed, interval kepercayaan |

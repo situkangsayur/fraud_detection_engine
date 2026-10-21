@@ -33,7 +33,8 @@ Kemampuan platform:
 
 ## Tampilan
 
-Demo publik: **https://fds.hendrikarisma.my.id** (akun tercantum di halaman login; data kembali ke kondisi awal setiap 00.00 WIB).
+Demo publik: **https://fds.hendrikarisma.my.id** (akun tercantum di halaman login; data kembali ke kondisi master
+setiap 00.00 WIB, lihat [runbook](docs/guides/operations-runbook.md)).
 
 | | |
 |---|---|
@@ -76,11 +77,16 @@ Setiap event melewati: mapping → graph → fitur → ML → rules → kombinas
 Kebutuhan: Docker + Docker Compose, RAM ± 16 GB (Ollama + OpenSearch), disk ± 20 GB.
 
 ```bash
+git clone -b revamp/rust-nuxt-stack git@github.com:situkangsayur/fraud_detection_engine.git   # v2; master = v1 legacy
+cd fraud_detection_engine
 cp .env.example .env              # lalu ganti semua nilai CHANGE_ME
-docker compose up -d --build      # build & jalankan semua service
-docker compose up ollama-pull     # unduh model LLM (sekali saja, ± 6 GB)
+docker compose up -d --build      # build & jalankan semua service (migrasi DB otomatis lewat service "migrate")
+docker compose up ollama-pull     # unduh model LLM (sekali saja, ± 6 GB; hanya dengan COMPOSE_PROFILES=local-llm)
 docker compose --profile seed run --rm simulator   # opsional: data demo
 ```
+
+Sudah ada server Ollama di host (seperti di nvda11-gpu)? Kosongkan `COMPOSE_PROFILES` dan set
+`OLLAMA_URL=http://host.docker.internal:11434`; lihat [Deployment §4](docs/guides/deployment.md).
 
 | Akses | Default |
 |---|---|
@@ -88,8 +94,8 @@ docker compose --profile seed run --rm simulator   # opsional: data demo
 | API gateway | `http://<host>:8080/api/v1` (`GATEWAY_HOST_PORT`) |
 | OpenAPI per service | `http://<host>:8080/api/openapi/{core,rule,graph,ml,llm,ingest}.json` |
 
-Hanya jaringan di `ALLOWED_SOURCE_RANGES` (default `10.100.21.0/24`, `192.168.1.0/24`) yang bisa mengakses UI dan
-API. Login pertama memakai `ADMIN_EMAIL` / `ADMIN_PASSWORD` dari `.env`.
+Hanya jaringan di `ALLOWED_SOURCE_RANGES` (default `10.100.21.0/24`, `192.168.11.0/24`, ditambah dua subnet internal
+docker yang wajib ada) yang bisa mengakses UI dan API. Login pertama memakai `ADMIN_EMAIL` / `ADMIN_PASSWORD` dari `.env`.
 
 Panduan lengkap: [Quickstart](docs/guides/quickstart.md) · [Deployment](docs/guides/deployment.md).
 
@@ -100,7 +106,7 @@ Panduan lengkap: [Quickstart](docs/guides/quickstart.md) · [Deployment](docs/gu
 | Bisnis / manajemen | [Ringkasan non-teknis](docs/business/overview.md) |
 | Pengguna (analis) | [Panduan pengguna per engine](docs/guides/user-guide.md) |
 | Developer | [Panduan developer](docs/guides/developer-guide.md) · [Kenapa struktur Rust-nya begini (untuk developer Java)](docs/technical/rust-codebase-guide.md) |
-| Operasional | [Deployment & operasional](docs/guides/deployment.md) |
+| Operasional | [Deployment & operasional](docs/guides/deployment.md) · [Runbook operasional harian (nvda11-gpu)](docs/guides/operations-runbook.md) |
 | Riset | [Panduan eksperimen (demo & dataset publik, master snapshot)](docs/guides/experiments.md) |
 | Teknologi & metode | [Technical overview: tech stack, arsitektur software & AI, metode/sains](docs/technical/technical-overview.md) |
 | Kontrak teknis | [Arsitektur](docs/technical/architecture.md) · [Multi-tenancy](docs/technical/multi-tenancy.md) · [Rule DSL](docs/technical/rule-dsl.md) · [Data source](docs/technical/data-sources.md) · [Feature catalog](docs/technical/feature-catalog.md) · [ML plugins](docs/technical/ml-plugins.md) · [API](docs/technical/api-contract.md) |
@@ -114,9 +120,11 @@ services/rust/        core-api, rule-service, graph-service + crate platform, co
 services/python/      ml-service, llm-service, ingest-service
 web/                  Nuxt UI
 db/migrations/        skema PostgreSQL (satu sumber kebenaran) + db/tests
-deploy/               init Postgres, konfigurasi gateway
+deploy/               init Postgres, konfigurasi gateway, seed.sh + deploy/demo/ (reset demo, master snapshot/restore)
 plugins/              plugin algoritma ML eksternal (hot reload)
 tools/simulator/      generator data sintetis + evaluasi
+tools/research_seed/  seeding tenant eksperimen dari dataset publik (Sparkov, PaySim, SAML-D)
+tools/research_export/ ekspor dataset riset (Parquet/CSV + metrik)
 docs/                 dokumentasi teknis, bisnis, panduan, backlog
 legacy/               kode versi awal (FastAPI + MongoDB), history lengkap di branch legacy/python-fastapi-mongo
 ```

@@ -1,5 +1,7 @@
 # Rule DSL — specification v1
 
+> Document status: verified against commit `07ee765` on 2026-10-13.
+
 Implemented by the pure Rust crate `services/rust/crates/rule-engine`, served by `rule-service`. Rules are stored as JSON (`rules.rule_versions.definition`
 plus envelope columns). This document is the contract for the Rust engine, the Nuxt rule builder and the LLM rule
 recommender (which must emit exactly this JSON).
@@ -12,15 +14,15 @@ recommender (which must emit exactly this JSON).
 | `velocity` | Aggregate a field over history, grouped by one or more fields, within a window, optionally transformed by a **statistical function** (z-score, gaussian tail, linear trend, percentile rank, poisson tail), then compare against a value or a field |
 | `composite` | Velocity whose history is **filtered by simple-rule conditions** (plus an optional gate on the current event) |
 | `reference` | White/black/watch-list lookup in a named **reference list** (created at runtime) by a join key; hit on membership, non-membership, or a condition on the entry's attributes |
-| `graph` | Condition on a graph metric of the customer: distance to a known fraudster, fraud neighbours within k hops, shared-entity count, component size, community fraud rate |
+| `graph` | Condition on a graph metric of the customer: distance to a known fraudster, fraud neighbours within k hops, shared-entity count, component size, degree, community fraud rate |
 
 Every rule evaluates to exactly one of three **outcomes**:
 
 * `match` (true)
 * `no_match` (false)
 * `trapped`: the rule could not be evaluated. Causes include a null/missing operand, a type mismatch, division by zero or
-  a non-finite formula result, too few samples for a statistic, an unknown reference list, a regex compile error, or a
-  data-provider error. A trapped result always carries a `reason`.
+  a non-finite formula result, too few samples for a statistic, an unknown reference list, a regex compile error, a
+  data-provider error, or the per-rule time budget (`timeout`). A trapped result always carries a `reason`.
 
 ## 2. Rule envelope
 
@@ -44,14 +46,19 @@ Every rule evaluates to exactly one of three **outcomes**:
 | Field | Type | Notes |
 |---|---|---|
 | `code` | string `^[A-Z0-9-]{3,40}$` | unique, stable across versions |
+| `name` | string | required |
+| `description` | string | optional |
 | `kind` | enum | must equal the definition's kind |
-| `typologies` | string[] | from the typology list in architecture.md §1, used for grouping and analytics |
+| `typologies` | string[] | `carding, account_takeover, bank_account_takeover, system_breach, promo_abuse, refund_abuse, money_mule, other` (architecture.md §1), used for grouping and analytics |
 | `event_types` | string[] | the rule only runs for these event types; empty means all |
-| `risk_score` | number 0–100 | contribution when matched (before ruleset weight) |
-| `trapped_score` | number 0–100 | contribution when trapped **and** `on_trapped = "score"` |
-| `action` | `score` \| `force_review` \| `force_decline` \| `force_approve` | effect when matched |
-| `on_trapped` | `ignore` \| `score` \| `review` | `ignore`: logged only; `score`: add `trapped_score`; `review`: force review |
-| `missing_as_no_match` | bool | if true, a missing/null **field** operand yields `no_match` instead of `trapped` (other trap causes still trap) |
+| `risk_score` | number 0–100 | required; contribution when matched (before ruleset weight) |
+| `trapped_score` | number 0–100 | default 0; contribution when trapped **and** `on_trapped = "score"` |
+| `action` | `score` \| `force_review` \| `force_decline` \| `force_approve` | default `score`; effect when matched |
+| `on_trapped` | `ignore` \| `score` \| `review` | default `ignore`. `ignore`: logged only; `score`: add `trapped_score`; `review`: force review |
+| `missing_as_no_match` | bool | default false; if true, a missing/null **field** operand yields `no_match` instead of `trapped` (other trap causes still trap) |
+
+The envelope and every definition body reject unknown fields (`deny_unknown_fields`), so a misspelt key is a
+validation error with its JSON path, not a silently ignored option.
 
 ## 3. Operands
 
@@ -133,18 +140,26 @@ Three-valued (Kleene) logic:
 
 ```jsonc
 {
-  "event":    { canonical event fields: "event_type", "amount", "currency", "channel", "device_id", "ip_address",
-                "instrument_fingerprint", "card_bin", "issuer_country", "geo_country", "promo_code",
-                "discount_amount", "cashback_amount", "merchant_id", "ref_transaction_id", "occurred_at", ... },
+  "event":    { canonical event fields (non-null only) plus "customer_id": "external_id", "event_type", "occurred_at",
+                "amount", "currency", "channel", "status", "merchant_id", "merchant_category", "payment_method",
+                "device_id", "ip_address", "user_agent", "instrument_fingerprint", "card_bin", "card_last4",
+                "issuer_country", "recipient_fingerprint", "geo_country", "geo_city", "latitude", "longitude",
+                "promo_code", "discount_amount", "cashback_amount", "ref_transaction_id", "shipping_address",
+                "billing_address", "account_change_type", "login_success", "api_client_id" },
   "source":   { the raw source record (all original fields, nested), e.g. "source.order.items[0].sku" },
   "customer": { "external_id", "kyc_level", "segment", "status", "registered_at", "risk_label", "account_age_days", "attributes.*" },
   "features": { feature-catalog v1 (see feature-catalog.md) },
   "ml":       { "fraud_probability", "anomaly_score", "cluster_id", "cluster_fraud_rate", "model_version" },
-  "graph":    { "distance_to_fraud", "fraud_neighbors_1", "fraud_neighbors_2", "component_size", "shared_entity_count", "community_fraud_rate" }
+  "graph":    { "distance_to_fraud", "fraud_neighbors_1", "fraud_neighbors_2", "component_size", "shared_entity_count",
+                "degree", "community_fraud_rate", "shared_with_fraud_kinds" }
 }
 ```
 
-Paths use dots and `[n]` for array indexes. Paths are validated against `field_catalog` at save time. Unknown paths are
+`ml` keys are present only when the engine returned a value (no active model → absent); `graph` is `{}` when
+graph-service was unavailable, and `distance_to_fraud` is `null` when no fraud customer is within depth. Raw card and
+account numbers are never in the context.
+
+Paths use dots and `[n]` for array indexes. The six roots above are the only valid roots. Paths are validated against `field_catalog` at save time. Unknown paths are
 rejected unless they are under `source.` (source schemas evolve, and missing values then trap or no-match at runtime).
 
 ## 6. Kind-specific definitions
@@ -188,6 +203,8 @@ rejected unless they are under `source.` (source schemas evolve, and missing val
   (`"p": 0.95`). `field` is optional for `count`.
 * `include_current`: whether the current event is part of the history (default `true` for plain aggregates and `false`
   when a `statistic` is set).
+* `min_samples`: default 0 for plain aggregates, 5 when a `statistic` is set.
+* `history_event_types`: optional; empty means all event types.
 * `compare.right` may be any operand, e.g. compare `sum(amount) 24h` against `customer.attributes.monthly_income`
   or against a formula.
 
@@ -247,7 +264,8 @@ reason `insufficient_history` / `zero_variance`.
 ```
 
 * `mode`: `exists` (the key is in the list and currently valid), `not_exists`, or `attribute` (the entry exists **and**
-  `attribute_condition` matches; no entry → `no_match`).
+  `attribute_condition` matches; no entry → `no_match`). `attribute_condition` is a full condition (leaf or group)
+  and is only allowed with `mode: "attribute"`.
 * Lists live in `rules.reference_lists` / `rules.reference_entries`. They can be created at runtime from the UI, by API, or by
   CSV import. A list is either **project-scoped** or **tenant-wide** (shared by all projects of the tenant). Name
   resolution checks the project list first, then the tenant-wide list with the same name. `valid_from` / `valid_until` are respected. An unknown list → `trapped` (`unknown_reference_list`).
@@ -274,10 +292,14 @@ reason `insufficient_history` / `zero_variance`.
 | `degree` | number of distinct customers at distance 1 |
 | `community_fraud_rate` | fraud rate of the customer's Louvain community (computed by ml-service into `ml.graph_community_stats`; no community → trapped) |
 
+`link_kinds` accepts `email, phone, device, ip, card, bank_account, address, ref_transaction, api_client`. An empty
+list means the default seven kinds (all except `ip` and `api_client`). `include_similar` defaults to `true`,
+`max_depth` to 3.
+
 One hop = two customers sharing an entity of a listed kind. With `include_similar`, "similar" entities also count as
-shared (phone numbers differing by ≤ 1 digit or with the same last 9 digits; address trigram similarity ≥
-`settings.graph.similarity_threshold`). Supernode entities (degree > `settings.graph.supernode_degree_cap`, e.g. a
-public Wi-Fi IP) are skipped.
+shared (phone numbers differing in exactly one digit or with the same last 9 digits; emails with the same local part
+on different domains; address trigram similarity ≥ the project's `graph_config.similarity_threshold`). Supernode
+entities (degree > `graph_config.supernode_degree_cap`, e.g. a public Wi-Fi IP) are skipped.
 
 ## 7. Rulesets & scoring
 
@@ -286,6 +308,10 @@ public Wi-Fi IP) are skipped.
   "aggregation": "probabilistic_or", "max_score": 100,
   "rules": [ { "rule_id": "…", "weight": 1.0, "pinned_version": null } ] }
 ```
+
+`aggregation` defaults to `probabilistic_or`, `max_score` to 100 and a member's `weight` to 1.0. `pinned_version`
+pins a member to one rule version; otherwise the serving (approved) version is used. Rulesets are versioned like
+rules (`rules.ruleset_versions`).
 
 Per rule: `contribution = weight × risk_score × fraction` on match (fraction is 1 unless `scoring=weighted`),
 `weight × trapped_score` when trapped with `on_trapped = "score"`, and 0 otherwise.
@@ -315,7 +341,7 @@ Trace item stored in `decisions.rule_results`:
   "trace": { "value": 4, "op": "gte", "right": 3, "samples": 4, "window": "30d" }, "duration_us": 830 }
 ```
 
-## 8. Validation (`POST /api/v1/rules/validate`)
+## 8. Validation (`POST /api/v1/projects/{pid}/rules/validate`)
 
 Returns `{ "valid": bool, "errors": [{ "path": "definition.when.all[1].right", "message": "…" }],
 "referenced_fields": [...], "referenced_lists": [...] }`. It checks the JSON shape, enum values, formula parse and
@@ -349,5 +375,10 @@ These points were left open above and are fixed by the `rule-engine` crate; its 
   * Implicit multiplication also works across whitespace (`2 x`), but adjacent identifiers are never split.
   * A parameter named `e` shadows the constant.
 * **The same rule in several rulesets** is evaluated once per event. Its reason keeps the highest contribution.
-* **Per-rule time budget:** a rule exceeding it is `trapped` with reason `timeout`.
+* **Per-rule time budget:** a rule exceeding it is `trapped` with reason `timeout`. The budget is rule-service's
+  `RULE_TIMEOUT_MS` (default 50 ms), overridable per call with `?rule_timeout_ms=` (1–5000) on `/evaluate`.
+  Independent rules are evaluated concurrently.
+* **Caching:** rule-service caches the serving rule set (`SERVING_CACHE_TTL_SECS`, default 10 s), reference lookups
+  (`REFERENCE_CACHE_TTL_SECS`, default 5 s) and the field catalog (60 s), so approvals and list edits take effect
+  within seconds, not instantly.
 * **Traces** serialise non-finite numbers as the strings `"Infinity"` / `"-Infinity"`.

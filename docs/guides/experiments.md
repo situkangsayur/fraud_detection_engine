@@ -25,10 +25,12 @@ history (70% pertama, load_only) + label tertunda 7 hari
 
 Seluruh tenant lalu disimpan sebagai **master snapshot**.
 
-> **Penting:** restore 00.00 mengembalikan *semua* tenant ke master (downtime ±5 menit). Hasil eksperimen baru di
+Setiap pukul 00.00 WIB, platform di-restore dari master dengan timestamp digeser ke "sekarang". Apa pun yang diubah
+pengunjung hilang, sedangkan hasil eksperimen yang ada di master tetap konsisten.
+
+> **Penting:** restore 00.00 mengembalikan *semua* tenant ke master (downtime ±3–5 menit). Hasil eksperimen baru di
 > platform (tenant baru, model baru, perubahan rule) **hilang** kecuali disimpan dengan `deploy/demo/master.sh snapshot`.
-> File dataset di `~/datasets/` tidak tersentuh restore. Setiap pukul 00.00 WIB, platform di-restore dari master
-dengan timestamp digeser ke "sekarang". Apa pun yang diubah pengunjung hilang, sedangkan hasil eksperimen tetap konsisten.
+> File dataset di `~/datasets/` tidak tersentuh restore.
 
 ## 2. Prasyarat
 
@@ -63,7 +65,12 @@ deploy/demo/wipe-tenant.sh exp-paysim  # hapus SATU tenant eksperimen (tenant la
 ```
 
 Ground truth (`ground_truth.jsonl`) ditulis **sebelum** seeding dimulai. Kalau run terputus, truth tetap ada; bisa juga
-dibangkitkan ulang tanpa seeding: `uv run python -m research_seed --dataset sparkov --truth-only`.
+dibangkitkan ulang tanpa seeding: `uv run --directory tools/research_seed python -m research_seed --dataset sparkov --truth-only`.
+
+`deploy/seed.sh` memuat `.env` sendiri (tidak perlu `source`), dan memakai `uv` dari `~/.local/bin`. Semua mode
+memakai satu lock (`$TMPDIR/fraud-demo-reset.lock`): bila restore/seed lain sedang berjalan, perintah langsung keluar
+dengan pesan `another reset… is running`. Lokasi master bisa diganti dengan `DEMO_MASTER_DIR` (default
+`~/fraud-demo-master`).
 
 Opsi mode research (langsung lewat tool):
 
@@ -77,13 +84,23 @@ uv run python -m research_seed --dataset saml-d --target 60000 --seed 42 --tenan
 | `--target` | 60000 | jumlah event yang disampel dari dataset |
 | `--seed` | 42 | seed sampling (deterministik) |
 | `--tenant` | `exp-<dataset>` | tenant tujuan |
+| `--data-dir` | `~/datasets/fraud-public` | folder dataset publik |
 | `--out` | `~/datasets/fraud-research` | folder hasil ekspor |
+| `--skip-export` | – | seed saja, tanpa ekspor dataset riset |
+| `--truth-only` | – | hanya tulis ulang `ground_truth.jsonl` + `source.json` |
+
+Env yang dibaca: `GATEWAY_URL` (default `http://localhost:8080`), `ADMIN_EMAIL`, `ADMIN_PASSWORD`,
+`DEMO_USER_PASSWORD` (otomatis dari `.env` bila lewat `deploy/seed.sh`).
 
 Jadwal cron (di nvda11-gpu dipasang setelah master pertama dibuat):
 
 ```cron
-0 0 * * * /home/hendri/own_project/apps/fraud_detection_engine/deploy/seed.sh restore >> ~/.local/state/fraud-demo-reset.log 2>&1
+0 0 * * * ~/own_project/deployment/fraud_detection_engine/deploy/seed.sh restore >> ~/.local/state/fraud-demo-reset.log 2>&1
 ```
+
+> Sejak 2026-10-21 crontab menunjuk ke checkout deploy `~/own_project/deployment/fraud_detection_engine/…`
+> (sebelumnya `~/own_project/apps/fraud_detection_engine/…`, lihat [operations-runbook.md](operations-runbook.md) §9). Cara memeriksa hasil
+> restore malam: runbook §5.
 
 ## 4. Strategi sampling per dataset
 
@@ -119,11 +136,34 @@ Detail skema: [research-dataset.md](../technical/research-dataset.md).
   di tenant baru (`--tenant exp-<dataset>-r2`) atau di instalasi bersih. Model ML dilatih ulang, sehingga angka bisa
   sedikit berbeda karena inisialisasi bobot.
 * **Replikasi untuk confidence interval:** jalankan dengan beberapa `--seed` (mis. 42, 43, 44) ke tenant berbeda, lalu
-  hitung rata-rata ± CI dari `metrics/*.csv`. Untuk tenant demo, `deploy/seed.sh demo` memakai seed tanggal.
+  hitung rata-rata ± CI dari `metrics/*.csv`. Untuk tenant demo, `reset-demo.sh` memakai seed tanggal (`YYYYMMDD`)
+  kecuali `SIM_SEED` di-set. `deploy/seed.sh demo` memuat `.env`, jadi `SIM_SEED` di `.env` (di nvda11-gpu: `42`)
+  membuat seed tetap. Parameter run terakhir ada di `~/.local/state/fraud-demo/last-run.env`.
 * **Bandingkan konfigurasi:** ubah bobot engine/threshold di Settings project, lalu ekspor ulang dengan
   `tools/research_export` ke folder lain.
 
-## 7. Lisensi dataset
+## 7. Evaluasi dataset publik terpisah (`fraud-eval`)
+
+Selain tenant eksperimen di stack demo, nvda11-gpu menjalankan stack compose kedua, **`fraud-eval`**, untuk evaluasi
+end-to-end pada dataset publik lain (TabFormer, Fraud_Data, AMLworld, RBA, ULB). Stack ini tidak ikut restore 00.00.
+
+| Hal | Nilai |
+|---|---|
+| Kode evaluasi | `tools/public_eval` di branch `eval/public-datasets`, worktree `~/fraud-eval/repo` |
+| Compose | `docker-compose.yml` repo utama + `~/fraud-eval/compose.eval.yml` (subnet `172.31.252/253.0/24`), env `~/fraud-eval/.env.eval` |
+| Port | gateway `127.0.0.1:18090`, Postgres `127.0.0.1:5437` (hanya localhost) |
+| Data kerja / log | `~/fraud-eval/work/`, `~/fraud-eval/logs/`, runner `~/fraud-eval/supervise.sh` |
+
+```bash
+docker compose -p fraud-eval --env-file ~/fraud-eval/.env.eval \
+  -f ~/own_project/deployment/fraud_detection_engine/docker-compose.yml -f ~/fraud-eval/compose.eval.yml \
+  up -d postgres migrate core-api rule-service graph-service ml-service ingest-service gateway
+```
+
+Stack ini memakai image yang sama dengan demo (`fraud-platform/<service>:dev`). Hasil dan metodologi ada di branch
+`eval/public-datasets`.
+
+## 8. Lisensi dataset
 
 | Dataset | Lisensi | Konsekuensi |
 |---|---|---|

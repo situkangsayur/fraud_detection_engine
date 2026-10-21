@@ -17,10 +17,15 @@ Semua Dockerfile kompatibel dengan builder klasik maupun BuildKit, jadi `docker 
 ## 2. Konfigurasi
 
 ```bash
-git clone git@github.com:situkangsayur/fraud_detection_engine.git
+git clone -b revamp/rust-nuxt-stack git@github.com:situkangsayur/fraud_detection_engine.git
 cd fraud_detection_engine
 cp .env.example .env
 ```
+
+> Branch default repo (`master`) masih berisi v1 (Python/MongoDB). Platform v2 ada di branch
+> `revamp/rust-nuxt-stack`. Semua path di panduan ini relatif terhadap root repo. Di host demo nvda11-gpu, stack
+> berjalan dari checkout deploy `~/own_project/deployment/fraud_detection_engine`; pengembangan di
+> `~/own_project/fraud_detection_engine` (lihat [operations-runbook.md](operations-runbook.md) §9).
 
 Ganti **semua** nilai `CHANGE_ME` di `.env`. Contoh untuk membuat secret acak:
 
@@ -33,11 +38,13 @@ Variabel yang paling sering diubah:
 | Variabel | Fungsi |
 |---|---|
 | `ADMIN_EMAIL`, `ADMIN_PASSWORD` | akun platform admin pertama |
-| `DEMO_USER_PASSWORD` | password `analyst@demo.local` dan `approver@demo.local` (tenant demo) |
+| `DEMO_USER_PASSWORD` | password `analyst@<tenant>.local` dan `approver@<tenant>.local` (tenant demo & eksperimen) |
 | `SEED_DEMO` | `true` membuat tenant demo + 4 project dengan template rule |
 | `ALLOWED_SOURCE_RANGES` | jaringan yang boleh mengakses UI/API (lihat bagian 5) |
 | `WEB_HOST_PORT`, `GATEWAY_HOST_PORT` | port UI (default 3000) dan API (default 8080) |
-| `OLLAMA_CHAT_MODEL`, `OLLAMA_EMBED_MODEL` | model LLM (default `qwen2.5:7b-instruct`, `bge-m3`) |
+| `OLLAMA_URL` | alamat Ollama. Default `http://ollama:11434` (container stack); untuk Ollama di host: `http://host.docker.internal:11434` |
+| `OLLAMA_CHAT_MODEL`, `OLLAMA_EMBED_MODEL` | model LLM (default `qwen2.5:7b-instruct`, `bge-m3`; demo nvda11-gpu: `qwen3:8b`, `bge-m3`) |
+| `OLLAMA_THINK`, `OLLAMA_TIMEOUT_S`, `OLLAMA_NUM_CTX`, `OLLAMA_NUM_PREDICT` | perilaku model (lihat `deployment.md` §4); default 180 s, 8192, 4096 |
 | `COMPOSE_PROFILES` | `local-llm` menjalankan container Ollama sendiri; kosongkan bila memakai server Ollama yang sudah ada (lihat `deployment.md` §4) |
 | `LLM_PROVIDER`, `GEMINI_API_KEY` | `gemini` = chat/agent lewat Gemini, embedding tetap di Ollama (lihat `deployment.md` §4) |
 | `DEMO_LOGIN_HINTS` | khusus instalasi demo: daftar akun yang ditampilkan di halaman login (`email\|password\|peran;…`) |
@@ -72,25 +79,39 @@ project, lalu melatih dan meng-approve satu model supervised (`mlp_backprop`) da
 
 ```bash
 set -a; . ./.env; set +a
-python3 deploy/demo/post_seed.py
+python3 deploy/demo/post_seed.py     # stdlib saja; GATEWAY_URL default http://localhost:8080
 ```
+
+Jika `GATEWAY_HOST_PORT` bukan 8080, set `GATEWAY_URL=http://localhost:<port>` sebelum menjalankan skrip.
 
 Seed penuh (2.000 customer × 60 hari) memakan waktu ±1 jam; data selalu berakhir pada waktu simulator dijalankan.
 
-### Reset demo harian
+### Seed demo penuh & reset harian
 
-Untuk instalasi demo publik, `deploy/demo/reset-demo.sh` mengembalikan semuanya ke kondisi default dengan urutan
-seperti di produksi: hapus volume data → seed **history** (70% pertama, `load_only`) → regulasi + latih & approve
-model → seed **online** (30% sisanya di-score dengan semua engine aktif) → simulasi aktivitas analis
+Pintu masuk seeding adalah `deploy/seed.sh` (membaca `.env` sendiri): `demo`, `research <dataset>…`, `master`,
+`restore` (detail di [experiments.md](experiments.md)). `deploy/seed.sh demo` menjalankan `deploy/demo/reset-demo.sh`,
+yang mengembalikan semuanya ke kondisi default dengan urutan seperti di produksi: hapus volume data → seed
+**history** (70% pertama, `load_only`) → regulasi + latih & approve model → seed **online** (30% sisanya di-score dengan semua engine aktif) → simulasi aktivitas analis
 (`deploy/demo/activity.py`: case, cluster, blacklist, laporan & proposal LLM) → ekspor **dataset riset** ke
 `~/datasets/fraud-live-demo/<tanggal>/` (lihat [research-dataset.md](../technical/research-dataset.md)). Seed simulator
-berganti setiap hari (`YYYYMMDD`), sehingga setiap hari menjadi replikasi independen. Jadwalkan setiap tengah malam:
+default-nya `YYYYMMDD` (berganti setiap hari), kecuali `SIM_SEED` di-set: `deploy/seed.sh demo` memuat `.env`, jadi
+`SIM_SEED=42` di `.env` membuat seed tetap.
+
+Seed demo penuh memakan ±2 jam, terlalu lama untuk dijalankan setiap malam. Demo publik di nvda11-gpu karena itu
+memakai **master snapshot**: seed sekali (`deploy/seed.sh master`), lalu cron 00.00 hanya me-*restore* master (±3–5
+menit) dan menggeser semua timestamp ke "sekarang":
+
+```cron
+0 0 * * * ~/own_project/deployment/fraud_detection_engine/deploy/seed.sh restore >> ~/.local/state/fraud-demo-reset.log 2>&1
+```
+
+Alternatif tanpa master (seed ulang penuh setiap malam, seed simulator berganti harian):
 
 ```cron
 0 0 * * * /path/ke/repo/deploy/demo/reset-demo.sh >> ~/.local/state/fraud-demo-reset.log 2>&1
 ```
 
-> **Jangan pernah** menjalankan skrip ini di instalasi berisi data sungguhan. ID project berubah setiap reset,
+> **Jangan pernah** menjalankan `seed.sh demo|master|restore` atau `reset-demo.sh` di instalasi berisi data sungguhan. ID project berubah setiap reset,
 > sehingga bookmark ke `/p/<id>` lama diarahkan ke daftar project.
 
 ## 5. Akses
@@ -99,7 +120,7 @@ berganti setiap hari (`YYYYMMDD`), sehingga setiap hari menjadi replikasi indepe
 |---|---|
 | Web UI | `http://<ip-server>:<WEB_HOST_PORT>` |
 | API | `http://<ip-server>:<GATEWAY_HOST_PORT>/api/v1` |
-| OpenAPI | `http://<ip-server>:8080/api/openapi/core.json` (juga `rule`, `graph`, `ml`, `llm`, `ingest`) |
+| OpenAPI | `http://<ip-server>:<GATEWAY_HOST_PORT>/api/openapi/core.json` (juga `rule`, `graph`, `ml`, `llm`, `ingest`) |
 
 UI dan API hanya bisa diakses dari jaringan yang tercantum di `ALLOWED_SOURCE_RANGES`. Nilai default-nya:
 
@@ -113,7 +134,8 @@ UI dan API hanya bisa diakses dari jaringan yang tercantum di `ALLOWED_SOURCE_RA
 Klien dari jaringan lain mendapat HTTP **403**. Setelah mengubah daftar ini, jalankan
 `docker compose up -d gateway`.
 
-> Jika port 3000 sudah dipakai aplikasi lain di server, set `WEB_HOST_PORT` ke port lain (mis. `3080`).
+> Jika port 3000 sudah dipakai aplikasi lain di server, set `WEB_HOST_PORT` ke port lain. Demo di nvda11-gpu memakai
+> `WEB_HOST_PORT=3080` dan `GATEWAY_HOST_PORT=8080`.
 
 Bahasa UI: Bahasa Indonesia (default) atau English. Pilih lewat tombol **ID/EN** di halaman login, atau dari menu
 user setelah login. Pilihan disimpan di cookie `fraud_locale`.
@@ -122,7 +144,8 @@ user setelah login. Pilihan disimpan di cookie `fraud_locale`.
 
 ```bash
 curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${WEB_HOST_PORT:-3000}/login     # 200
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8080/api/v1/me                    # 401 (butuh login)
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${GATEWAY_HOST_PORT:-8080}/api/v1/me   # 401 (butuh login)
+curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:${GATEWAY_HOST_PORT:-8080}/ping        # 200 (Traefik)
 docker compose logs -f core-api                                                            # log JSON
 ```
 
@@ -131,5 +154,6 @@ docker compose logs -f core-api                                                 
 ```bash
 docker compose down        # stop (data tetap ada di volume)
 docker compose down -v     # stop + HAPUS semua data (database, model, index, termasuk cache model Ollama)
-deploy/demo/reset-demo.sh  # khusus demo: hapus data + seed ulang (cache model Ollama dipertahankan)
+deploy/seed.sh demo        # khusus demo: hapus data + seed ulang (cache model Ollama dipertahankan)
+deploy/seed.sh restore     # khusus demo dengan master: kembalikan master snapshot
 ```
