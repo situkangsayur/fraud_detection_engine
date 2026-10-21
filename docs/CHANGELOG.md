@@ -2,6 +2,20 @@
 
 Ringkasan perubahan per tanggal, disusun dari git log branch `revamp/rust-nuxt-stack`. Detail ada di commit masing-masing.
 
+## 2026-10-21 (siang) — GPU, chat live, graph, akun & tema, docs bergambar
+- **GPU & Ollama:** driver NVIDIA dibangun ulang untuk kernel 7.0.0-38 (qwen3:8b 100% GPU, ≈ 62 tok/s, sebelumnya
+  ≈ 0,5 tok/s di CPU); Ollama 0.6.8 → 0.40.7; pemanasan model di `fraud-platform.service`.
+- **Chat LLM** (`779b19c`, `371f712`): riwayat tersimpan walau jawaban lambat/gagal/tab ditutup; 6 tool baru
+  (`search_customers`, `get_customer`, `search_events`, `get_event`, `search_cases`, `get_case`) dengan masking
+  email/telepon; jawaban ter-stream live (route gateway tanpa buffering) + status langkah dan detik di UI.
+- **Graph** (`d14e3c2`, `371f712`): legend jelas, canvas lebih besar + layar penuh, pencarian nama/ID/email/telepon/IP/
+  device, daftar pelanggan fraud untuk memulai, skor kemiripan 2 desimal.
+- **Web** (`7e3d4f4`, tema terang default): menu akun di kanan atas setiap halaman, halaman **Profil saya**, pilihan
+  tema Sistem/Terang/Gelap.
+- **Docs:** panduan pengguna dengan 33 screenshot (tema terang) dan story per fitur; `technical/bank-datasets.md`
+  (17 dataset bank baru + 9 kasus, lisensi & referensi); `technical/integration-extensibility.md` (plugin, struktur
+  data/request/response klien); backlog E19; runbook GPU/Ollama.
+
 ## 2026-10-21 — Checkout deploy terpisah, autostart, PRD/TRD AI Console
 - Operasional: stack `fraud-platform` + `fraud-eval`, cron restore dan worktree eval dipindah dari
   `~/own_project/apps/fraud_detection_engine` ke `~/own_project/deployment/fraud_detection_engine`; checkout dev/docs

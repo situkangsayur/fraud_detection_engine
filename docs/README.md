@@ -3,7 +3,7 @@
 Platform deteksi fraud multi-tenant: **5 engine** (rule, ML supervised, ML unsupervised, graph, LLM) menghasilkan
 **satu keputusan** (approve / review / decline) dengan alasan, case management, dan governance maker–checker.
 
-**Status (2026-10-21):** stack demo berjalan dari checkout deploy `~/own_project/deployment/fraud_detection_engine` dengan autostart systemd; PRD/TRD AI Console ditulis.
+**Status (2026-10-21):** stack demo berjalan dari checkout deploy `~/own_project/deployment/fraud_detection_engine` dengan autostart systemd; LLM di GPU (qwen3:8b, Ollama 0.40.7), chat bisa mengecek pelanggan/transaksi/kasus; PRD/TRD AI Console ditulis.
 **Status (2026-10-13):** v2 berjalan sebagai demo publik di `fds.hendrikarisma.my.id` (host nvda11-gpu, commit
 `07ee765`). LLM memakai Ollama lokal (qwen3:8b). Lapisan **multi-agent** sudah didesain, belum diimplementasi.
 Lihat [roadmap](roadmap.md).
@@ -39,7 +39,7 @@ Lihat [roadmap](roadmap.md).
 | Dokumen | Isi |
 |---|---|
 | [quickstart.md](guides/quickstart.md) | Menjalankan stack secara lokal |
-| [user-guide.md](guides/user-guide.md) | Panduan pengguna per engine/menu |
+| [user-guide.md](guides/user-guide.md) | Panduan pengguna per fitur: story, langkah, screenshot (tema terang) |
 | [developer-guide.md](guides/developer-guide.md) | Struktur repo, build, test, konvensi |
 | [deployment.md](guides/deployment.md) | Deploy dengan docker compose, profile GPU/LLM |
 | [operations-runbook.md](guides/operations-runbook.md) | Operasional harian, reset demo, insiden umum, konsolidasi direktori |
@@ -60,6 +60,8 @@ Lihat [roadmap](roadmap.md).
 | [multi-agent.md](technical/multi-agent.md) | **Desain** lapisan multi-agent (F1–F9) |
 | [trd-agent-ai-console.md](technical/trd-agent-ai-console.md) | **TRD** AI Console: data model, resolver, multi-model, enkripsi key, API, UI |
 | [ux-design.md](technical/ux-design.md) | **Desain** UX & alur untuk fitur agentic |
+| [bank-datasets.md](technical/bank-datasets.md) | **Dataset bank publik** berreferensi: karakter, lisensi, kasus demo/riset |
+| [integration-extensibility.md](technical/integration-extensibility.md) | Plugin & integrasi: struktur data/request/response klien, apa yang bisa dikonfigurasi |
 | [test-data.md](technical/test-data.md) | Katalog data uji publik per kasus & golden set |
 | [evaluation.md](technical/evaluation.md) | Hasil evaluasi deteksi |
 | [research-dataset.md](technical/research-dataset.md) | Skema dataset riset hasil ekspor |

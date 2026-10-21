@@ -49,8 +49,8 @@ digeser sehingga data berakhir "hari ini". Semua perubahan pengunjung (rule, cas
 ### 1.4 Checklist 15 menit sebelum mulai
 
 - [ ] Login sebagai analyst dan approver di dua jendela; pilih project **Checkout Protection**.
-- [ ] **Panaskan LLM:** buka *Asisten LLM → Chat LLM* dan kirim satu pertanyaan pendek. Model berjalan di CPU, dan
-      pertanyaan pertama setelah lama diam paling lambat karena model harus dimuat ke memori.
+- [ ] **Panaskan LLM:** buka *Asisten LLM → Chat LLM* dan kirim satu pertanyaan pendek. Model berjalan di GPU
+      (jawaban dalam hitungan detik); pertanyaan pertama setelah lama diam sedikit lebih lambat karena model dimuat ke memori.
 - [ ] Buka *Asisten LLM → Analisis & laporan* dan pastikan ada laporan yang sudah selesai (cadangan jika LLM lambat).
 - [ ] Buka *Usulan rule* dan catat satu usulan yang masih pending (cadangan untuk langkah maker–checker).
 - [ ] Atur bahasa (tombol ID/EN di halaman login) dan mode terang agar terbaca di proyektor.
@@ -204,7 +204,7 @@ Tutup dengan rencana multi-agent (§4) jika audiens tertarik pada AI.
 
 ## 4. Rencana: demo multi-agent
 
-Asisten saat ini adalah **satu agen** dengan 14 alat. Versi berikutnya memakai **beberapa agen** dengan tugas
+Asisten saat ini adalah **satu agen** dengan 20 alat (termasuk mencari dan membuka pelanggan, transaksi, dan kasus). Versi berikutnya memakai **beberapa agen** dengan tugas
 terpisah: agen regulasi, analitik, pola, perancang rule, simulator, dan *Critic* yang memeriksa sitasi dan dampak
 sebelum usulan sampai ke approver. Skenario demo yang direncanakan: *"Regulation-to-Rule"*, yaitu dari regulasi yang
 terlampir menjadi usulan rule yang tersitasi, tervalidasi, ter-backtest, dan sudah dikritik, dengan progres tiap agen

@@ -104,13 +104,13 @@ OLLAMA_URL=http://nvda11-gpu:11434              # atau http://host.docker.intern
 OLLAMA_CHAT_MODEL=qwen3:8b                      # cek: curl <OLLAMA_URL>/api/tags
 OLLAMA_EMBED_MODEL=bge-m3                       # harus tersedia di server itu (ollama pull bge-m3)
 OLLAMA_THINK=false                              # model "thinking" (qwen3, deepseek-r1) di Ollama ≥ 0.9
-OLLAMA_TIMEOUT_S=900                            # nvda11-gpu: besar karena saat ini model jalan di CPU
+OLLAMA_TIMEOUT_S=900                            # aman untuk CPU; dengan GPU 180–300 cukup
 OLLAMA_NUM_CTX=20480                            # laporan analisis butuh ±15k token prompt
 OLLAMA_NUM_PREDICT=4096
 ```
 
 * Untuk qwen3, llm-service juga menambahkan `/no_think` ke pesan user terakhir, sehingga reasoning tetap dilewati di
-  Ollama lama yang belum mengenal parameter `think` (Ollama di nvda11-gpu saat ini versi 0.6.8: cek
+  Ollama lama yang belum mengenal parameter `think` (Ollama di nvda11-gpu: 0.40.7 sejak 2026-10-21; cek
   `curl -s localhost:11434/api/version`).
 
 * `host.docker.internal` sudah dipetakan ke host (`extra_hosts: host-gateway`). Ollama di host harus listen di
@@ -151,9 +151,8 @@ Jika driver NVIDIA tidak termuat setelah upgrade kernel (`nvidia-smi` gagal), bu
 `sudo dkms install nvidia/<versi> -k $(uname -r) && sudo modprobe nvidia && sudo systemctl restart ollama`
 (`dkms status` menunjukkan versi dan kernel yang sudah punya modul; butuh paket `linux-headers-$(uname -r)`).
 
-> **Status nvda11-gpu (2026-10-13):** driver GPU belum termuat (modul DKMS `nvidia/595.84` baru dibangun untuk kernel
-> 7.0.0-34, kernel berjalan 7.0.0-38), sehingga qwen3:8b berjalan di CPU dan sangat lambat (laporan analisis bisa
-> puluhan menit). Selama belum beres, pertahankan `OLLAMA_TIMEOUT_S=900` atau pakai Gemini (§4c) untuk chat.
+> **Status nvda11-gpu (2026-10-21):** driver dibangun ulang untuk kernel 7.0.0-38; qwen3:8b 100% GPU (≈ 62 tok/s),
+> chat dengan tools ±3–25 detik. Sebelumnya (13–21 Okt) model berjalan di CPU (≈ 0,5 tok/s, 1–3 menit per panggilan).
 
 ### GPU lokal
 

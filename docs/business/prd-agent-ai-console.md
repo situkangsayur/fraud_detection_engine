@@ -26,7 +26,7 @@ Spesifikasi teknis: [TRD — Agent & AI Console](../technical/trd-agent-ai-conso
 | Hanya **satu provider aktif** untuk seluruh platform. | Tidak bisa memakai Gemini untuk satu agen (misalnya Critic) dan Ollama untuk agen lain. |
 | Kolom `chat_model` per project berupa **teks bebas** dengan default `qwen2.5:7b-instruct`, padahal model itu tidak terpasang di host (yang terpasang `qwen3:8b`). | Project baru bisa diam-diam memakai model yang tidak ada → chat gagal. |
 | API key Gemini hanya ada di `.env` server. | Tenant tidak bisa memakai key sendiri; rotasi key butuh restart. |
-| Belum ada multi-agent: satu agen dengan 14 tools mengerjakan semuanya. | Usulan rule tidak diperiksa ulang secara independen; pasal regulasi bisa salah kutip. |
+| Belum ada multi-agent: satu agen dengan 20 tools mengerjakan semuanya. | Usulan rule tidak diperiksa ulang secara independen; pasal regulasi bisa salah kutip. |
 | Tidak ada tampilan pemakaian AI (token, latensi, error per model). | Sulit menilai model mana yang layak dan berapa biayanya. |
 
 ## 2. Tujuan
@@ -133,7 +133,7 @@ Rincian: [governance-compliance.md](governance-compliance.md).
 |---|---|---|
 | Client Ollama (chat, embedding, thinking, timeout, context) | ✅ ada | `clients/ollama.py` |
 | Client Gemini (chat via endpoint OpenAI-compatible; embedding tetap Ollama) | ✅ ada | `clients/gemini.py`, dipilih **global** lewat `LLM_PROVIDER` |
-| Satu agen tool-calling (14 tools) + pipeline analisis + RAG regulasi | ✅ ada | lihat [llm-agentic.md](../technical/llm-agentic.md) |
+| Satu agen tool-calling (20 tools, termasuk cek pelanggan/transaksi/kasus) + pipeline analisis + RAG regulasi | ✅ ada | lihat [llm-agentic.md](../technical/llm-agentic.md) |
 | `llm_config` per project (`chat_model`, suhu, bahasa, prompt tambahan) | 🟡 sebagian | tersimpan di DB dan dipakai llm-service; hanya bisa diisi saat **membuat** project, berupa teks bebas, default salah (`qwen2.5:7b-instruct`) |
 | Pilih provider per project / per agen | ❌ belum | provider global |
 | Multi-model + fallback | ❌ belum | — |
@@ -142,13 +142,13 @@ Rincian: [governance-compliance.md](governance-compliance.md).
 | Registry agen, orchestrator, Critic, `verify_citation` | ❌ belum (desain selesai) | [multi-agent.md](../technical/multi-agent.md) |
 | UI AI Console, Agent Runs, Usage | ❌ belum (desain UX Agent Runs ada) | [ux-design.md](../technical/ux-design.md) |
 | Metrik token per panggilan | ❌ belum | Ollama sudah mengirim `prompt_eval_count`/`eval_count`, belum dicatat |
-| Infrastruktur: Ollama di nvda11-gpu, stack autostart (systemd) | ✅ ada | GPU driver belum termuat → model jalan di CPU (blocker B1) |
+| Infrastruktur: Ollama 0.40.7 di GPU nvda11-gpu (≈ 62 tok/s), stack autostart (systemd) | ✅ ada | driver GPU diperbaiki 2026-10-21 |
 
 ## 8. Prasyarat & risiko
 
 | # | Hal | Dampak | Mitigasi |
 |---|---|---|---|
-| R1 | Driver GPU nvda11-gpu belum jalan | multi-agent di CPU terlalu lambat untuk demo | perbaiki DKMS (runbook §7) sebelum Fase 2 |
+| R1 | Driver GPU hilang lagi setelah upgrade kernel | LLM kembali ke CPU (≈ 0,5 tok/s) | `dkms install` untuk kernel baru (runbook §7); sudah diperbaiki 2026-10-21 |
 | R2 | Satu GPU 8 GB: dua model lokal berbeda = model saling menggeser dari VRAM | latensi naik | UI memperingatkan; antrean LLM tunggal; sarankan model kedua dari provider cloud |
 | R3 | Akun Gemini pemilik bermasalah | multi-provider tidak bisa diuji live | uji dengan mock + key tenant lain; Ollama tetap default |
 | R4 | Kebocoran API key | biaya & penyalahgunaan | enkripsi, write-only, audit, rotasi |

@@ -201,11 +201,11 @@ account_number? (hashed immediately, never stored), payload?:{}}`.
 | GET | `/api/v1/projects/{pid}/llm/reports[/{id}]` | viewer | |
 | POST | `/v1/mapping/suggest` | INT | `{fields, canonical_fields}` → `{suggestions:[{source_path, target, confidence, reason}]}` |
 
-LLM tools (14; function calling, INT token + tenant/project headers, read-only except `create_rule_proposal`):
+LLM tools (20; function calling, INT token + tenant/project headers, read-only except `create_rule_proposal`; contact fields masked):
 `search_regulations`, `list_rules`, `get_rule`, `get_rules_performance`, `backtest_rule_definition`,
 `validate_rule_definition`, `get_analytics_overview`, `get_feature_drift`, `get_typology_stats`,
 `get_anomaly_clusters`, `get_graph_components`, `get_graph_communities`, `get_project_context`,
-`create_rule_proposal`.
+`search_customers`, `get_customer`, `search_events`, `get_event`, `search_cases`, `get_case`, `create_rule_proposal`.
 
 ## F. ingest-service (`ingest-service:8003`)
 

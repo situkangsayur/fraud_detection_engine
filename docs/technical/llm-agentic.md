@@ -147,7 +147,7 @@ messages ─▶ model ─▶ tool_calls? ─yes─▶ run allow-listed tools (ti
   citations, proposals}`. The same generator serves the JSON and SSE endpoints.
 * Temperature: project `llm_config.temperature` (default 0.1).
 
-### 4.1 Tool allow-list (`agent/tools.py`) — 14 tools, 1 write
+### 4.1 Tool allow-list (`agent/tools.py`) — 20 tools, 1 write
 
 | # | Tool | Purpose | Backing call | R/W |
 |---|---|---|---|---|
@@ -164,9 +164,20 @@ messages ─▶ model ─▶ tool_calls? ─yes─▶ run allow-listed tools (ti
 | 11 | `get_graph_components` | Connected customer components (shared device/phone/card/address) with fraud counts | graph-service `GET /graph/components` | R |
 | 12 | `get_graph_communities` | Louvain communities with fraud rate | ml-service `GET /ml/graph-communities` (404 tolerated) | R |
 | 13 | `get_project_context` | Project details, ML/graph config, attached regulation ids, ≤300 field-catalog paths | cached project + core-api field catalog | R |
-| 14 | `create_rule_proposal` | Create a **pending** proposal (`new_rule | modify_rule | retire_rule`) through the proposal pipeline (§6). Only when the analyst explicitly asks | rule-service `POST /proposals` | **W** (`writes=True`) |
+| 14 | `search_customers` | Customers by name (partial), customer id, email; plus graph entities matching a phone/email/IP/device/ref id (`linked_by_entity`); filter `risk_label` | core-api `GET /customers` + graph-service `GET /graph/search` | R |
+| 15 | `get_customer` | Profile + 30-day stats, last ≤ 30 events with decision/score, graph fraud proximity | core-api `GET /customers/{id}`, `GET /events?customer_id`; graph-service `GET /graph/customers/{id}/fraud-proximity` | R |
+| 16 | `search_events` | Events newest first; filters `q, customer_id, decision, event_type, min_score, since_days` | core-api `GET /events` | R |
+| 17 | `get_event` | One event: features, decision (engine scores, reasons, rule trace), labels, case | core-api `GET /events/{id}` | R |
+| 18 | `search_cases` | Cases; filters `status, typology, priority, customer_id` | core-api `GET /cases` | R |
+| 19 | `get_case` | One case with event, decision, customer, graph summary | core-api `GET /cases/{id}` | R |
+| 20 | `create_rule_proposal` | Create a **pending** proposal (`new_rule | modify_rule | retire_rule`) through the proposal pipeline (§6). Only when the analyst explicitly asks | rule-service `POST /proposals` | **W** (`writes=True`) |
 
 `test_only_one_write_tool_in_allow_list` guards the single write tool.
+
+**Data minimisation for the data tools (14–19).** Before a result reaches the model, `minimise()` masks contact
+fields (`email`, `phone` and their `_normalized` variants) in the same format as `platform::pii`
+(`b***@gmail.com`, `+62812****890`) and drops raw payloads (`payload`, `raw`). Names and ids stay, so the model can
+refer to records. `tests/test_data_tools.py` asserts that unmasked values never appear in the tool message.
 
 ### 4.2 Prompt-injection defences
 
@@ -192,9 +203,11 @@ sequenceDiagram
   A->>L: POST /projects/{pid}/llm/chat/stream {conversation_id?, message}
   L->>P: GET /projects/{pid} (llm_config, 60 s cache)
   L->>DB: create conversation or load last 20 user/assistant messages
+  L->>DB: persist the user message (before the model runs)
   L-->>A: event: conversation {conversation_id}
+  Note over L: the loop runs in its own asyncio task; a client disconnect does not cancel it
   loop ≤ 6 tool rounds
-    L->>M: /api/chat stream (system=chat.md.j2, history, message, 14 tool specs)
+    L->>M: /api/chat stream (system=chat.md.j2, history, message, 20 tool specs)
     M-->>L: tokens and/or tool_calls
     L-->>A: event: token …
     alt tool_calls
@@ -207,7 +220,7 @@ sequenceDiagram
       Note over L: answer = content
     end
   end
-  L->>DB: persist user msg, tool trace (role=tool), assistant answer + citations
+  L->>DB: persist tool trace (role=tool), assistant answer + citations (or an [error] reply)
   L-->>A: event: done {answer, tool_calls, citations, proposals}
 ```
 
@@ -215,8 +228,15 @@ sequenceDiagram
 
 * `llm.conversations(tenant_id, project_id, user_id, title = first 80 chars of the first message)`.
 * `llm.messages(role ∈ system|user|assistant|tool, content, tool_calls jsonb, citations jsonb)`. Per turn: the
-  user message, one `tool` row with the tool-name list and the full trace (if any tool ran), and the assistant
-  answer with citations. Persisted after the loop finishes.
+  user message (stored **before** the model runs), one `tool` row with the tool-name list and the full trace (if any
+  tool ran), and the assistant answer with citations (stored when the loop finishes).
+* The streaming loop runs in its own task (`ChatService._run_and_persist`), so closing the tab or switching
+  conversation while the model is answering does not lose the reply; it appears when the conversation is reopened.
+  A failed generation stores an explicit `[error] …` assistant reply. (Before 2026-10-21 everything was persisted
+  only after a successful `done`, so slow or interrupted answers left empty conversations.)
+* Streaming path: the gateway routes `…/llm/chat/stream` **without** Traefik's buffering middleware (it would hold
+  every SSE event until the reply ends), and the BFF forwards the stream unbuffered. Token streaming while tools are
+  offered needs Ollama ≥ 0.8 (nvda11-gpu runs 0.40.7 since 2026-10-21).
 * History replayed to the model: last 20 `user`/`assistant` messages (tool rows are not replayed).
 * Conversations are private to their creator: another user's conversation id returns 404. Listing is filtered by
   project and actor.
@@ -392,7 +412,7 @@ covered by automated evaluation.
 
 | Aspect | Today (07ee765) |
 |---|---|
-| Agents | **One** agent: the chat loop in `agent/loop.py`, one system prompt, one model, 14 tools |
+| Agents | **One** agent: the chat loop in `agent/loop.py`, one system prompt, one model, 20 tools |
 | Planning | implicit (model decides tool calls turn by turn); no planner, no explicit plan state |
 | Analyses | fixed pipelines with a single structured LLM call (+ repair calls), **not** agents |
 | Memory | per-conversation history (last 20 messages); no long-term/cross-conversation memory |

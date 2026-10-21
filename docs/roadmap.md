@@ -7,7 +7,7 @@ Terakhir diperbarui: 2026-10-21. Detail story per epic ada di [`backlog.md`](bac
 
 - **v2 berjalan** sebagai demo publik `fds.hendrikarisma.my.id` di host nvda11-gpu (commit `07ee765`). Epic E0–E14
   selesai kecuali uji live LLM (E7).
-- Platform sudah **agentic** (satu tool-calling agent, 14 tools, aksi tulis hanya lewat proposal), tetapi **belum
+- Platform sudah **agentic** (satu tool-calling agent, 20 tools, aksi tulis hanya lewat proposal), tetapi **belum
   multi-agent**.
 - Fokus saat ini: **dokumentasi terpadu** dan **desain multi-agent**. Belum ada pengembangan kode baru.
 
@@ -15,7 +15,7 @@ Terakhir diperbarui: 2026-10-21. Detail story per epic ada di [`backlog.md`](bac
 
 | # | Blocker | Dampak | Status 2026-10-13 |
 |---|---|---|---|
-| B1 | Driver GPU nvda11-gpu (DKMS nvidia untuk kernel 7.0) | LLM lokal di CPU ~0,5 tok/s; multi-agent tidak layak untuk demo | belum (`nvidia-smi` gagal) |
+| B1 | Driver GPU nvda11-gpu (DKMS nvidia untuk kernel 7.0) | LLM lokal di CPU ~0,5 tok/s; multi-agent tidak layak untuk demo | **selesai 2026-10-21** (100% GPU, ≈ 62 tok/s; Ollama 0.40.7) |
 | B2 | Pindah stack ke checkout deploy | dua direktori membingungkan | **selesai 2026-10-21** (`~/own_project/deployment/…`, autostart systemd) |
 | B6 | Disk nvda11-gpu 100% | OpenSearch berhenti mengindeks, build gagal | belum |
 | B3 | Uji LLM live tuntas | baseline single-agent untuk perbandingan | belum |
@@ -34,7 +34,7 @@ gantt
     Dokumentasi terpadu (E17)            :f0a, 2026-10-13, 5d
     Pindah stack + systemd (selesai)     :done, f0b, 2026-10-21, 1d
     Bersihkan disk (B6)                  :crit, f0e, 2026-10-21, 2d
-    Driver GPU (B1)                      :crit, f0c, 2026-10-14, 7d
+    Driver GPU (B1, selesai)             :done, f0c, 2026-10-21, 1d
     Uji LLM live + golden set (B3, B4)   :f0d, after f0c, 7d
     section Fase 1 — Quick wins deteksi
     Threshold per project (E3 P1 / G1)   :f1a, after f0a, 10d

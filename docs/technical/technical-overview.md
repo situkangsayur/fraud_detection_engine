@@ -23,7 +23,9 @@ in [multi-agent.md](multi-agent.md).
 | Ingest service | Python 3.12, FastAPI, pandas, pyarrow, SQLAlchemy | — | Schema inference and file/DB parsing (CSV, TSV, JSON/JSONL, Parquet, XLSX, Postgres/MySQL), SQL pull connectors |
 | Database | PostgreSQL | 16.4 | System of record; row-level security per tenant; one schema + least-privilege role per service; `pg_trgm` for similarity |
 | Vector / search | OpenSearch | 2.19.1 | kNN (HNSW, Lucene engine) + BM25 over regulation chunks, one index per tenant |
-| LLM runtime | Ollama (`ollama/ollama:0.12.3`, optional `local-llm` profile or an external GPU host) or Gemini (OpenAI-compatible API) for chat | — | Local/private by default; cloud chat optional; embeddings always on Ollama (`bge-m3`) |
+| LLM runtime | Ollama (`ollama/ollama:0.12.3`, optional `local-llm` profile or an external GPU host) or Gemini (OpenAI-compatible API) for chat | demo host: Ollama **0.40.7** on the host (systemd), `qwen3:8b` + `bge-m3` | Local/private by default; cloud chat optional; embeddings always on Ollama (`bge-m3`) |
+| Demo host | nvda11-gpu: Ubuntu, kernel 7.0, RTX 3060 Ti 8 GB (driver 595.84, DKMS), Docker Compose stacks `fraud-platform` + `fraud-eval`, systemd user unit `fraud-platform.service` (autostart + model warm-up), cron restore 00:00 | — | One box for the public demo and the evaluation stack; see `guides/operations-runbook.md` |
+| Extensibility | data-source mappings (config), Rule DSL (config), ML algorithm plugins (Python, hot-loaded) | — | Client data in its own shape without code; see `integration-extensibility.md` |
 | Web | Nuxt 4.5 + Nuxt UI 4.11, Pinia, vue-i18n (ID/EN), ECharts, Cytoscape, CodeMirror | Node ≥ 22.19 | UI per engine plus a BFF that keeps tokens server-side |
 | Auth | JWT (HS256) access + rotating refresh tokens, Argon2id password hashes, sealed session cookie in the BFF | — | Browser never sees tokens |
 | Packaging | Docker Compose (+ `docker-compose.gpu.yml` for an NVIDIA GPU), uv, cargo-chef | — | One command to run everything |

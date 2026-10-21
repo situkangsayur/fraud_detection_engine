@@ -7,7 +7,7 @@ golden sets and scenarios), [`architecture.md`](architecture.md), [`rule-dsl.md`
 
 ## 0. Summary
 
-Today v2 runs **one tool-calling agent** (`llm_service/agent/loop.py`, 14 tools, `max_iterations` bound) plus
+Today v2 runs **one tool-calling agent** (`llm_service/agent/loop.py`, 20 tools, `max_iterations` bound) plus
 **fixed structured pipelines** (`analysis/service.py`). It is agentic, but it is not a multi-agent system. No agent
 has a role of its own, nothing coordinates handoffs, and nothing independently checks the agent's citations or arguments.
 
@@ -57,7 +57,7 @@ per-agent override later.
 
 ### 3.1 Existing tools (verified in `agent/tools.py`)
 
-All 14 tools are read-only except `create_rule_proposal` (`writes=True`).
+All 20 tools are read-only except `create_rule_proposal` (`writes=True`).
 
 | Group | Tool | Backend call (`clients/platform.py` / search) |
 |---|---|---|
@@ -112,7 +112,7 @@ Rules that keep the roster safe:
 * The **Critic** never sees the Designer's prompt or reasoning. It sees only the draft, simulation and citations.
 * For the M3-x ablation, the Critic runs on a different model. On one 8 GB GPU that forces a model swap, so the demo
   uses the same model for both (see §8).
-* The single chat agent (`/llm/chat`) stays unchanged until F8. It keeps all 14 tools.
+* The single chat agent (`/llm/chat`) stays unchanged until F8. It keeps all 20 tools.
 
 ## 4. Shared run state
 
@@ -531,7 +531,7 @@ Ablation (from the research notes; ≥ 5 seeds per condition × task × dataset)
 | Code | Configuration |
 |---|---|
 | B0 | No LLM: stage-template rules + manual backtest |
-| B1 | Single agent v2 (loop + 14 tools), today's chat |
+| B1 | Single agent v2 (loop + 20 tools), today's chat |
 | B2 | v2 structured pipeline (`recommend_rules` in `analysis/service.py`) |
 | M1 | Multi-agent without Critic |
 | M2 | Multi-agent + LLM-only Critic |

@@ -27,7 +27,7 @@ fallback, so an empty database behaves exactly like today.
 | Model per project (UI) | free text, only on `projects/new.vue`, **default `qwen2.5:7b-instruct`** (not installed on nvda11-gpu, which has `qwen3:8b`) | `web/app/pages/projects/new.vue:32` |
 | `GeminiClient` model guard | the project model is used only if it starts with `gemini`, otherwise falls back to `GEMINI_MODEL` | `clients/gemini.py:92` |
 | Secrets | `GEMINI_API_KEY` in `.env`; no secret is stored in the DB anywhere in the platform | — |
-| Agent | one `run_agent` loop, 14 tools, `chat_max_tool_iterations`; no per-agent identity | `agent/loop.py`, `agent/tools.py` |
+| Agent | one `run_agent` loop, 20 tools, `chat_max_tool_iterations`; no per-agent identity | `agent/loop.py`, `agent/tools.py` |
 | Token usage | not recorded (Ollama returns `prompt_eval_count`/`eval_count`) | `clients/ollama.py` |
 | Audit | services `INSERT` into `core.audit_log` directly (grant in `0007`) | `0007_rls_and_grants.sql` |
 

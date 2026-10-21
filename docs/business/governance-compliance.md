@@ -115,8 +115,10 @@ flowchart LR
 
 ### 8.1 Prinsip: AI mengusulkan, manusia memutuskan
 
-* Asisten AI memakai **14 alat**. Tiga belas hanya membaca (mencari pasal, membaca rule dan performanya, statistik,
-  drift, anomali, komunitas graph, konteks project, validasi dan backtest draft). Satu-satunya alat yang menulis adalah
+* Asisten AI memakai **20 alat**. Sembilan belas hanya membaca (mencari pasal, membaca rule dan performanya, statistik,
+  drift, anomali, komunitas graph, konteks project, validasi dan backtest draft, serta mencari dan membuka pelanggan,
+  transaksi, dan kasus). Email dan nomor telepon disamarkan (`b***@gmail.com`, `+62812****890`) dan payload mentah
+  dibuang sebelum data sampai ke model. Satu-satunya alat yang menulis adalah
   **membuat usulan berstatus pending**.
 * Usulan otomatis divalidasi (definisi rule harus sah; jika tidak, AI diminta memperbaiki maksimal 2 kali) dan
   di-backtest 30 hari sebelum muncul di menu **Usulan rule**.

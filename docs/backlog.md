@@ -18,7 +18,7 @@ Terakhir diperbarui: 2026-10-21. Roadmap (fase & urutan): [`roadmap.md`](roadmap
 | E4 Supervised ML (plugin) | P0 | done |
 | E5 Unsupervised ML / anomaly & clustering (plugin) | P0 | done |
 | E6 Graph engine | P0 | done |
-| E7 LLM assistant (regulasi, analisis, rekomendasi) | P0 | in-progress (uji live: retrieval OK, kualitas jawaban qwen3:8b di CPU kurang) |
+| E7 LLM assistant (regulasi, analisis, rekomendasi) | P0 | in-progress (GPU aktif 2026-10-21; chat + 20 tools teruji live; golden set belum) |
 | E8 Orkestrasi scoring & keputusan | P0 | done |
 | E9 Case management & labeling | P0 | done |
 | E10 UI (Nuxt) per engine | P0 | done |
@@ -30,6 +30,7 @@ Terakhir diperbarui: 2026-10-21. Roadmap (fase & urutan): [`roadmap.md`](roadmap
 | E16 Multi-agent & fitur agentic (F1–F9) | P1/P2 | todo (desain selesai: `technical/multi-agent.md`) |
 | E17 Operasional repo & dokumentasi terpadu | P0 | in-progress (stack dipindah + autostart systemd: done) |
 | E18 AI Console: agent & konfigurasi AI (multi-model, provider, API key) | P1 | todo (PRD + TRD selesai) |
+| E19 Integrasi klien: template respons, callback/webhook keluar | P1 | todo (analisis: `technical/integration-extensibility.md`) |
 
 ---
 
@@ -44,7 +45,17 @@ Terakhir diperbarui: 2026-10-21. Roadmap (fase & urutan): [`roadmap.md`](roadmap
       API key terenkripsi): `business/prd-agent-ai-console.md`, `technical/trd-agent-ai-console.md` → epic E18.
 - [ ] **Disk nvda11-gpu 100%** (sisa ±6 GB) → bersihkan sebelum pengembangan apa pun (OpenSearch blok di 95%).
 - [x] Push `eval/public-datasets` ke origin (2026-10-21).
-- [ ] Driver GPU masih gagal (kernel 7.0.0-38), Ollama masih 0.6.8.
+- [x] Driver GPU diperbaiki (DKMS untuk kernel 7.0.0-38): qwen3:8b 100% GPU, ≈ 62 tok/s (sebelumnya ≈ 0,5 tok/s di CPU,
+      yang juga membuat seluruh server lambat saat chat berjalan). Ollama 0.6.8 → 0.40.7.
+- [x] Chat LLM: riwayat tersimpan walau jawaban lambat/gagal/tab ditutup; jawaban ter-stream live (route gateway tanpa
+      buffering + Ollama baru) dengan status langkah & detik; 6 tool baru untuk cek pelanggan, transaksi, kasus
+      (email/telepon disamarkan).
+- [x] Graph: legend jelas (warna sama dengan node, jumlah per jenis), canvas lebih besar + layar penuh, cari
+      nama/ID/email/telepon/IP/device, daftar pelanggan fraud untuk memulai.
+- [x] UI: menu akun di kanan atas setiap halaman (profil, tema Sistem/Terang/Gelap, bahasa, keluar), halaman
+      **Profil saya**, tema terang sebagai default.
+- [x] Docs: panduan pengguna dengan screenshot (tema terang) dan story per fitur, katalog dataset bank
+      (`technical/bank-datasets.md`), integrasi & ekstensibilitas (`technical/integration-extensibility.md`).
 
 Langkah berikutnya (urut): bersihkan disk → driver GPU → uji LLM live (baseline) → **E18 R1** (AI Console dasar) →
 E18 R2 (agent profile + multi-model) → E16 MVP multi-agent di atas konfigurasi E18.
@@ -62,7 +73,7 @@ Status per 2026-10-13:
 - [ ] Hapus clone tidak terpakai di p14s (`~/own_project/fraud_detection_engine`, `~/own_project/apps/fraud_detection_engine`
       + stack-nya); vault Obsidian di p14s tetap.
 - [ ] Push branch `eval/public-datasets` (2 commit hasil evaluasi 5 dataset publik) ke origin.
-- [ ] Driver GPU nvda11-gpu masih belum jalan (`nvidia-smi` gagal, kernel 7.0.0-38) → LLM lokal (qwen3:8b) di CPU.
+- [x] ~~Driver GPU nvda11-gpu masih belum jalan~~ → diperbaiki 2026-10-21.
 - [ ] Gemini: akun pemilik bermasalah → demo memakai Ollama lokal dulu.
 - [ ] **P0 keamanan demo publik:** `DEMO_LOGIN_HINTS` di `.env` ikut menampilkan akun **platform admin** di halaman
       login publik (dan hint memakai password yang sama) → hapus hint platform admin, ganti password, pertimbangkan
@@ -71,7 +82,7 @@ Status per 2026-10-13:
       rule-service dengan token internal → viewer bisa membuat proposal pending lewat chat. Batasi tool tulis ke peran
       ≥ analyst (lihat `technical/llm-agentic.md` §8).
 - [ ] Disk nvda11-gpu ±94% (OpenSearch memblokir index pada 95%; snapshot master ±600 MB) → bersihkan/perluas.
-- [ ] Ollama host versi 0.6.8 (`OLLAMA_THINK` butuh ≥ 0.9; saat ini tertutup oleh `/no_think`) → upgrade.
+- [x] ~~Ollama host versi 0.6.8~~ → 0.40.7 (2026-10-21).
 
 Langkah berikutnya (urut):
 1. Selesaikan dokumentasi terpadu (E17) dan review desain multi-agent + UX + data uji (E16).
@@ -275,7 +286,7 @@ Langkah berikutnya:
 
 ## E16 — Multi-agent & fitur agentic
 Desain: [`technical/multi-agent.md`](technical/multi-agent.md) · UX: [`technical/ux-design.md`](technical/ux-design.md) ·
-data uji: [`technical/test-data.md`](technical/test-data.md). Kondisi sekarang: **satu** tool-calling agent (14 tools) +
+data uji: [`technical/test-data.md`](technical/test-data.md). Kondisi sekarang: **satu** tool-calling agent (20 tools) +
 pipeline analisis terstruktur (lihat [`technical/llm-agentic.md`](technical/llm-agentic.md)). Governance tidak berubah:
 satu-satunya aksi tulis tetap `create_rule_proposal` → maker–checker → shadow.
 
@@ -345,6 +356,26 @@ R2 — Agent profile & multi-model:
 
 R3 = E16 MVP multi-agent memakai konfigurasi R2.
 
+## E19 — Integrasi klien (respons & callback)
+Analisis: [`technical/integration-extensibility.md`](technical/integration-extensibility.md). Struktur data & request
+klien sudah fleksibel (mapping), tetapi respons selalu `DecisionOut`.
+- [ ] P1 Template respons per data source (`DecisionOut` → JSON klien, mesin mapping dibalik, versioned + maker–checker).
+- [ ] P1 Webhook keluar / callback (HMAC, retry, dead-letter) saat keputusan final, case resolved, label berubah.
+- [ ] P2 Kebijakan status code per source (mis. selalu 200).
+
+## Lain-lain (temuan 2026-10-21)
+- [ ] P1 Ganti password mandiri di halaman Profil, dan tombol **reset password** untuk pengguna yang sudah ada di
+      halaman Pengguna tenant (API `PATCH /tenants/{tid}/users/{uid}` sudah menerima `password`, UI belum).
+- [x] Detail kasus error 500 bila keputusan tanpa metrik graph (`DecisionOut.graph` null) → diperbaiki 2026-10-21.
+- [ ] P2 Dashboard: label donut "Fraud per tipologi" tumpang tindih dengan legend pada lebar 1440 px.
+- [ ] **P1 Dataset bank untuk simulasi & demo** (dipilih pemilik 2026-10-21; detail & lisensi: `technical/bank-datasets.md`).
+      Per dataset: loader di `tools/research_seed` + mapping + tenant eksperimen + ground truth sebelum seeding +
+      masuk master/restore malam + skenario kasus di `demo-script.md`. Sampel kecil (disk nvda11-gpu ±6 GB).
+  - [ ] MoMTSim v1 (CC BY 4.0, e-wallet): sampel ±60 rb tx, buang kolom saldo (bocor label); kasus C7 SIM-swap ATO / refund fraud.
+  - [ ] AMLSim (Apache-2.0, data dibangkitkan sendiri): ±1–5 rb akun dengan pola fan-in/fan-out/cycle/scatter-gather; kasus C1 jaringan mule (graph + LLM).
+  - [ ] BankSim (CC BY-NC-SA, non-komersial): sampel ±60 rb tx; kasus C8 burst kartu curian, graph pelanggan–merchant.
+  - [ ] SynthAML (CC BY 4.0): sampel alert (tanpa id klien → tanpa graph); kasus C3 triase alert ML + narasi LLM; split per kuartal.
+
 ## Gap terukur (dasar prioritas)
 
 Sumber angka: [`technical/evaluation.md`](technical/evaluation.md) (dataset riset 2026-10-07 + 5 dataset publik).
@@ -357,5 +388,5 @@ Sumber angka: [`technical/evaluation.md`](technical/evaluation.md) (dataset rise
 | G4 | Template rule tidak general | AUC rules SAML-D 0,5, PaySim 0,585 | F1, F2 (rule per dataset/project) |
 | G5 | Cash withdrawal (SAML-D) | recall 0,06 | fitur lokasi ATM/agen atau diterima sebagai keterbatasan |
 | G6 | Akun tanpa histori (PaySim) | velocity tidak bekerja | fitur cold-start, peer-group baseline |
-| G7 | LLM lambat & berhalusinasi | qwen3:8b CPU ~0,5 tok/s; pasal karangan | driver GPU, Critic + `verify_citation` |
+| G7 | LLM berhalusinasi | pasal karangan (kecepatan sudah beres: GPU ≈ 62 tok/s sejak 2026-10-21) | Critic + `verify_citation` |
 | G8 | Kasus returns sedikit | 7 fraud online | replikasi seed, interval kepercayaan |

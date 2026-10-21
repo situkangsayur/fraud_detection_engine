@@ -21,7 +21,7 @@ Panduan harian untuk instalasi demo publik di host **nvda11-gpu**. Konsep, konfi
 | URL publik | `https://fds.hendrikarisma.my.id` (reverse proxy TLS di luar host → UI `:3080`) |
 | Stack evaluasi | compose project `fraud-eval`: `docker-compose.yml` repo + `~/fraud-eval/compose.eval.yml`, env `~/fraud-eval/.env.eval`; gateway `127.0.0.1:18090`, Postgres `127.0.0.1:5437`; worktree `~/fraud-eval/repo` (branch `eval/public-datasets`) |
 | LLM | Ollama di host (`ollama.service`), dipanggil lewat `OLLAMA_URL=http://host.docker.internal:11434`; `qwen3:8b` (chat) + `bge-m3` (embedding), `OLLAMA_NUM_CTX=20480`, `OLLAMA_THINK=false`, `OLLAMA_TIMEOUT_S=900`; Gemini opsional (`LLM_PROVIDER=gemini`) |
-| GPU | RTX 3060 Ti 8 GB; **driver belum termuat** (2026-10-13), model berjalan di CPU dan sangat lambat |
+| GPU | RTX 3060 Ti 8 GB, driver 595.84 (DKMS dibangun ulang untuk kernel 7.0.0-38 pada 2026-10-21); qwen3:8b 100% GPU, ≈ 62 tok/s. Ollama **0.40.7** |
 | Reset malam | cron `0 0 * * *` → `deploy/seed.sh restore`, log `~/.local/state/fraud-demo-reset.log` |
 | Master snapshot | `~/fraud-demo-master/<UTC timestamp>/`, `current` → yang dipakai restore |
 | Dataset | `~/datasets/fraud-public/` (input publik), `~/datasets/fraud-research/`, `~/datasets/fraud-live-demo/` (ekspor) |
@@ -180,7 +180,7 @@ Volume lain (`ml_models`, `regulations`, `uploads`): lihat [deployment.md](deplo
 
 ```bash
 systemctl status ollama --no-pager | head -5
-curl -s localhost:11434/api/version                       # 2026-10-13: 0.6.8
+curl -s localhost:11434/api/version                       # 2026-10-21: 0.40.7
 curl -s localhost:11434/api/tags | python3 -c "import json,sys; print([m['name'] for m in json.load(sys.stdin)['models']])"
                                                           # harus ada qwen3:8b dan bge-m3
 ollama ps                                                 # kolom PROCESSOR: idealnya ≥ 90% GPU
@@ -190,10 +190,18 @@ docker compose exec llm-service python -c "import urllib.request as u; print(u.u
 ```
 
 * Model hilang: `ollama pull qwen3:8b` / `ollama pull bge-m3` (di host, bukan container).
-* Ollama 0.6.8 belum mengenal parameter `think`; llm-service tetap menambahkan `/no_think` untuk qwen3, dan blok
-  `<think>` selalu dibuang.
-* **Driver GPU (tertunda):** modul DKMS `nvidia/595.84` baru dibangun untuk kernel 7.0.0-34, sedangkan kernel
-  berjalan 7.0.0-38. Perbaikan (butuh sudo, lakukan di luar jam 00.00):
+* llm-service tetap menambahkan `/no_think` untuk qwen3, dan blok `<think>` selalu dibuang.
+* **Pemanasan model:** `fraud-platform.service` (systemd user) memuat qwen3:8b dengan `num_ctx=20480` setelah stack
+  naik, sehingga chat pertama setelah boot tidak menunggu model dimuat. Pemuatan pertama setelah upgrade Ollama bisa
+  ±1–2 menit (sekali saja).
+* **Upgrade Ollama** (dilakukan 2026-10-21, 0.6.8 → 0.40.7, perlu agar jawaban chat ter-stream saat tools aktif):
+  unduh `https://ollama.com/install.sh`, baca, lalu jalankan. Skrip **menimpa** `/etc/systemd/system/ollama.service`:
+  kembalikan unit lama (berisi `OLLAMA_HOST=0.0.0.0`, wajib agar container bisa memanggil Ollama), `daemon-reload`,
+  `restart ollama`. Drop-in `ollama.service.d/fraud-platform.conf` tidak tersentuh. Backup unit + binary lama:
+  `~/backup/ollama-0.6.8-2026-10-21/`; rollback: `OLLAMA_VERSION=0.6.8 sh install.sh` lalu pulihkan unit.
+* **Driver GPU setelah upgrade kernel** (terjadi 2026-10-13, diperbaiki 2026-10-21): modul DKMS harus dibangun untuk
+  kernel yang berjalan. Gejala: `nvidia-smi` gagal, `ollama ps` menunjukkan `100% CPU`, chat 1–3 menit per panggilan
+  dan seluruh server ikut lambat (CPU penuh). Perbaikan (butuh sudo, di luar jam 00.00, tanpa reboot):
 
   ```bash
   dkms status
@@ -204,7 +212,7 @@ docker compose exec llm-service python -c "import urllib.request as u; print(u.u
   ```
 
   Setelah GPU aktif, `OLLAMA_TIMEOUT_S` boleh diturunkan (mis. 180–300) dengan `docker compose up -d llm-service`.
-* Butuh LLM cepat sebelum GPU beres: `LLM_PROVIDER=gemini` + `GEMINI_API_KEY` di `.env`, lalu
+* Butuh LLM cepat saat GPU bermasalah: `LLM_PROVIDER=gemini` + `GEMINI_API_KEY` di `.env`, lalu
   `docker compose up -d llm-service` (data prompt dikirim ke Google; embedding tetap Ollama).
 
 ## 8. Insiden umum & perbaikan
