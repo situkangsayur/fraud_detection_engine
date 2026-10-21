@@ -13,6 +13,10 @@ export default defineNuxtConfig({
 
   css: ['~/assets/css/main.css'],
 
+  // Light by default (readability); users can still pick Dark or System in the account menu / profile page,
+  // and that choice is kept in the `nuxt-color-mode` storage key.
+  colorMode: { preference: 'light', fallback: 'light' },
+
   runtimeConfig: {
     // Server-only. Every key can be overridden at runtime with NUXT_<UPPER_SNAKE> env vars.
     apiBaseUrl: 'http://localhost:8080', // NUXT_API_BASE_URL — the gateway
