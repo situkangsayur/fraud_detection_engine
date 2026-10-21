@@ -225,7 +225,8 @@ export interface DecisionOut {
   reasons: Reason[]
   rule_results: RuleResult[]
   ml: MlOutput
-  graph: GraphMetrics
+  /** null when the graph engine did not contribute (degraded, or no graph data for the customer). */
+  graph: GraphMetrics | null
   degraded: Engine[]
   case_id: Uuid | null
   latency_ms: number

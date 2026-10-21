@@ -91,7 +91,7 @@ const forced = computed(() => props.decision.rule_results.find(r => !r.shadow &&
           {{ t('ml.cluster') }} {{ decision.ml.cluster_id }} · {{ t('ml.fraudRate') }} {{ fmtPct(decision.ml.cluster_fraud_rate) }}
         </p>
         <p
-          v-if="e === 'graph'"
+          v-if="e === 'graph' && decision.graph"
           class="text-xs text-muted mt-1"
         >
           {{ t('graph.distanceToFraud') }}: {{ decision.graph.distance_to_fraud ?? '∞' }} · {{ t('graph.componentSize') }}: {{ decision.graph.component_size ?? '—' }}
